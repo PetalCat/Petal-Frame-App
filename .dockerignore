@@ -1,0 +1,9 @@
+node_modules
+android
+ios
+*.log
+.vscode
+*.db
+uploads
+avatars
+.env

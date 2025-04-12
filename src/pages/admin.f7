@@ -1,0 +1,179 @@
+<template>
+  <div class="page">
+    <div class="page-content">
+      <div class="block">
+        <p><b>Signup Status:</b> <span id="signupStatus">...</span></p>
+        <button class="button button-outline" id="toggleSignup">
+          Toggle Signup Lock
+        </button>
+      </div>
+
+      <div class="block">
+        <h3>User List</h3>
+        <ul id="userList"></ul>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  async function loadProtectedImage(url, token, imgElement) {
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load avatar");
+      const blob = await res.blob();
+      imgElement.src = URL.createObjectURL(blob);
+    } catch (err) {
+      console.error("Failed loading", url, err);
+      imgElement.src = "/img/default-pfp.png";
+    }
+  }
+
+  export default (props, { $onMounted }) => {
+    const server = localStorage.getItem("server") || "http://127.0.0.1:8000";
+
+    async function fetchUsers() {
+      const token = localStorage.getItem("token");
+      const list = document.getElementById("userList");
+      list.innerHTML = "Loading...";
+
+      const res = await fetch(`${server}/admin/list_users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const users = await res.json();
+      list.innerHTML = "";
+
+      users.forEach((u) => {
+        const item = document.createElement("li");
+        const row = document.createElement("div");
+        row.className = "user-info";
+
+        const avatar = document.createElement("img");
+        avatar.className = "user-avatar";
+
+        if (u.avatar) {
+          loadProtectedImage(`${server}/avatar/${u.avatar}`, token, avatar);
+        } else {
+          avatar.src = "/img/default-pfp.png";
+        }
+
+        const text = document.createElement("span");
+        text.innerText = `${u.username} ${u.is_admin ? "(admin)" : ""}`;
+        row.appendChild(avatar);
+        row.appendChild(text);
+
+        if (!u.is_admin && u.username !== localStorage.getItem("username")) {
+          const delBtn = document.createElement("button");
+          delBtn.className = "delete-btn";
+          delBtn.innerHTML = `<i class="icon f7-icons delete-icon">trash</i>`;
+          delBtn.onclick = async () => {
+            const form = new FormData();
+            form.append("target", u.username);
+            await fetch(`${server}/admin/delete_user`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: form,
+            });
+            fetchUsers();
+          };
+          row.appendChild(delBtn); // ✅ aligned inside row
+        }
+
+        item.appendChild(row); // ✅ only append the row
+        list.appendChild(item);
+      });
+    }
+
+    async function checkSignupLock() {
+      const statusEl = document.getElementById("signupStatus");
+      const toggleBtn = document.getElementById("toggleSignup");
+
+      const res = await fetch(`${server}/admin/signup_status`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json();
+      let locked = data.locked;
+
+      statusEl.innerText = locked ? "🔒 Locked" : "✅ Open";
+
+      toggleBtn.onclick = async () => {
+        const endpoint = locked ? "unlock_signup" : "lock_signup";
+        await fetch(`${server}/admin/${endpoint}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        locked = !locked;
+        statusEl.innerText = locked ? "🔒 Locked" : "✅ Open";
+      };
+    }
+
+    $onMounted(() => {
+      fetchUsers();
+      checkSignupLock();
+    });
+
+    return $render;
+  };
+</script>
+
+<style>
+  #userList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  #userList li {
+    padding: 10px 12px;
+    border-bottom: 1px solid #ddd;
+  }
+
+  #userList li:nth-child(odd) {
+    background-color: #f9f9f9;
+  }
+
+  #userList li:nth-child(even) {
+    background-color: #eeeeee;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+  }
+
+  .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #ccc;
+  }
+
+  .delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #d00;
+    padding: 0;
+    margin-left: auto;
+
+    width: auto;
+    height: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .delete-btn:hover {
+    color: #a00;
+  }
+
+  .delete-icon {
+    font-size: 20px;
+    pointer-events: none;
+  }
+</style>

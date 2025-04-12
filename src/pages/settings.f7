@@ -1,0 +1,70 @@
+<template>
+  <div class="page">
+    <div class="page-content">
+      <div class="block">
+        <h3>Profile Picture</h3>
+        <img
+          id="currentAvatar"
+          src="/img/default-pfp.png"
+          style="width: 100px; border-radius: 50%"
+        />
+        <form id="avatarForm">
+          <input type="file" name="file" accept="image/*" required />
+          <button class="button button-fill" type="submit">
+            Upload New Avatar
+          </button>
+        </form>
+        <div id="avatarStatus" class="block"></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  export default (props, { $f7, $onMounted }) => {
+    $onMounted(() => {
+      const token = localStorage.getItem("token");
+      const server = localStorage.getItem("server") || "http://127.0.0.1:8000";
+
+      // Fetch current avatar
+      fetch(`${server}/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.avatar) {
+            document.getElementById(
+              "currentAvatar"
+            ).src = `${server}/avatar/${data.avatar}`;
+          }
+        });
+
+      document
+        .getElementById("avatarForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const status = document.getElementById("avatarStatus");
+          status.innerText = "Uploading...";
+          const formData = new FormData(e.target);
+
+          try {
+            const res = await fetch(`${server}/me/avatar`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
+            });
+            const data = await res.json();
+            if (data.avatar) {
+              document.getElementById(
+                "currentAvatar"
+              ).src = `${server}/avatar/${data.avatar}`;
+              status.innerText = "✅ Updated!";
+            }
+          } catch (err) {
+            status.innerText = "❌ Upload failed";
+          }
+        });
+    });
+    return $render;
+  };
+</script>

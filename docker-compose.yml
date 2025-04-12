@@ -1,0 +1,8 @@
+version: "3.8"
+
+services:
+  petal_frame_web:
+    build: .
+    ports:
+      - "8321:4173" # external:internal
+    restart: unless-stopped

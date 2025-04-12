@@ -1,0 +1,6 @@
+{
+	"appId": "dev.petalcat.frame",
+	"appName": "Petal Frame",
+	"webDir": "www",
+	"bundledWebRuntime": false
+}

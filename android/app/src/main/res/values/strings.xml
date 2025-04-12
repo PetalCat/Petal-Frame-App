@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Petal Frame</string>
+    <string name="title_activity_main">Petal Frame</string>
+    <string name="package_name">dev.petalcat.frame</string>
+    <string name="custom_url_scheme">dev.petalcat.frame</string>
+</resources>

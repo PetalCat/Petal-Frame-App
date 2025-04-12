@@ -1,0 +1,18 @@
+{
+  "cwd": "/Users/hasenkap/development/videoapp/app",
+  "type": [
+    "web"
+  ],
+  "name": "Petal Frame",
+  "framework": "core",
+  "template": "blank",
+  "bundler": "vite",
+  "cssPreProcessor": false,
+  "theming": {
+    "customColor": true,
+    "color": "#35a9d2",
+    "darkMode": false,
+    "iconFonts": true
+  },
+  "customBuild": false
+}

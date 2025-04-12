@@ -1,0 +1,186 @@
+<template>
+  <div class="page">
+    <div class="page-content">
+      <form id="uploadForm" class="list no-hairlines-md">
+        <ul>
+          <li class="item-content item-input">
+            <div class="item-inner">
+              <div class="item-title item-label">Caption</div>
+              <div class="item-input-wrap">
+                <input type="text" name="caption" />
+              </div>
+            </div>
+          </li>
+          <li class="item-content item-input">
+            <div class="item-inner">
+              <div class="item-title item-label">Video</div>
+              <div class="item-input-wrap">
+                <input type="file" name="file" accept="video/*" required />
+              </div>
+            </div>
+          </li>
+        </ul>
+        <div class="block">
+          <button class="button button-fill" type="submit">Upload</button>
+        </div>
+      </form>
+      <div class="block" id="statusBlock"></div>
+
+      <!-- Media Gallery -->
+      <div class="media-gallery block">
+        <h2>Recent Uploads</h2>
+        <div id="mediaGrid" class="media-grid"></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  import store from "../js/store.js";
+
+  export default (props, { $f7, $onMounted }) => {
+    $onMounted(() => {
+      const token = store.state.token;
+      const server = store.state.server;
+
+      if (!token) {
+        $f7.views.main.router.navigate("/login");
+        return;
+      }
+
+      const form = document.getElementById("uploadForm");
+      const status = document.getElementById("statusBlock");
+      const mediaGrid = document.getElementById("mediaGrid");
+
+      const renderFeed = (feed) => {
+        mediaGrid.innerHTML = "";
+        feed.forEach((item) => {
+          const avatarId = `avatar-${item.username}-${item.filename}`;
+          const card = document.createElement("div");
+          card.className = "media-card";
+          card.innerHTML = `
+						<div class="media-header">
+							<img class="avatar" id="${avatarId}" src="/default-pfp.svg" alt="${
+            item.username
+          }" />
+							<strong>${item.username}</strong>
+						</div>
+						<video src="${server}/uploads/${item.filename}" controls muted></video>
+						<div class="meta">
+							<p>${item.caption || ""}</p>
+						</div>
+					`;
+          mediaGrid.appendChild(card);
+
+          if (item.avatar) {
+            fetch(`${server}/avatar/${item.avatar}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+              .then((res) => (res.ok ? res.blob() : null))
+              .then((blob) => {
+                if (blob) {
+                  const img = document.getElementById(avatarId);
+                  img.src = URL.createObjectURL(blob);
+                }
+              });
+          }
+        });
+      };
+
+      // Render cached feed first
+      renderFeed(store.state.feed);
+
+      // Fetch fresh feed
+      fetch(`${server}/feed`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then(async (feed) => {
+          await store.dispatch("setFeed", feed);
+          renderFeed(feed);
+        });
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        status.innerText = "Uploading...";
+        const formData = new FormData(form);
+
+        try {
+          const res = await fetch(`${server}/upload`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+
+          if (!res.ok) throw new Error("Upload failed");
+          const data = await res.json();
+          status.innerText = `✅ Uploaded! ID: ${data.id}`;
+          form.reset();
+        } catch (err) {
+          status.innerText = `❌ Error: ${err.message}`;
+        }
+      });
+    });
+
+    return $render;
+  };
+</script>
+
+<style>
+  .media-gallery {
+    margin-top: 2rem;
+  }
+
+  .media-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .media-card {
+    background: #f4f4f8;
+    border-radius: 14px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+    overflow: hidden;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .media-card video {
+    width: 100%;
+    max-height: 60vh;
+    border-radius: 8px;
+    object-fit: cover;
+  }
+
+  .media-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0.5rem;
+  }
+
+  .media-header .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #ccc;
+  }
+
+  .media-card .meta {
+    color: #333;
+    margin-top: 0.5rem;
+  }
+
+  .media-card .meta strong {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 4px;
+    color: #111;
+  }
+</style>

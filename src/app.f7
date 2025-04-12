@@ -1,0 +1,225 @@
+<template>
+  <div id="app">
+    <div class="view view-main view-init safe-areas">
+      <div class="navbar">
+        <div class="navbar-inner">
+          <div class="title">
+            <span id="navbarTitle">Petal Frame</span>
+            <br />
+            <small
+              id="serverDisplay"
+              style="font-size: 12px; opacity: 0.7"
+            ></small>
+          </div>
+          <div class="right" id="navbarLinks" style="display: none">
+            <a href="/" class="link">Home</a>
+            <a href="/admin" class="link" style="display: none" id="adminLink"
+              >Admin</a
+            >
+            <span id="navbarUsername"></span>
+            <img id="userAvatar" src="/default-pfp.svg" alt="Profile" />
+          </div>
+        </div>
+      </div>
+      <div class="page-content"></div>
+    </div>
+    <div id="userDropdown" class="user-dropdown">
+      <a href="/settings" class="dropdown-item">Settings</a>
+      <button class="dropdown-item" style="color: red" id="logoutButton">
+        Logout
+      </button>
+    </div>
+  </div>
+</template>
+
+<script>
+  import store from "./js/store.js";
+
+  async function loadProtectedImage(url, token, imgElement) {
+    try {
+      if (url.startsWith("/")) {
+        imgElement.src = url;
+        return;
+      }
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load avatar");
+      const blob = await res.blob();
+      imgElement.src = URL.createObjectURL(blob);
+    } catch {
+      imgElement.src = "/default-pfp.svg";
+    }
+  }
+
+  export default (props, { $f7, $onMounted }) => {
+    const updateNavbar = () => {
+      const titleMap = {
+        "/": "Home",
+        "/login": "Login",
+        "/register": "Register",
+        "/admin": "Admin Panel",
+        "/settings": "User Settings",
+      };
+
+      const currentUrl = $f7?.views?.main?.router?.currentRoute?.url || "/";
+      const title = titleMap[currentUrl] || "Petal Frame";
+
+      document.getElementById("navbarTitle").innerText = title;
+      document.getElementById(
+        "serverDisplay"
+      ).innerText = `🌐 ${store.state.server}`;
+      document.getElementById("navbarLinks").style.display = store.state.token
+        ? "flex"
+        : "none";
+
+      if (store.state.token) {
+        fetch(`${store.state.server}/admin/list_users`, {
+          headers: { Authorization: `Bearer ${store.state.token}` },
+        }).then((res) => {
+          if (res.ok) {
+            document.getElementById("adminLink").style.display = "inline";
+          }
+        });
+
+        fetch(`${store.state.server}/me`, {
+          headers: { Authorization: `Bearer ${store.state.token}` },
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            const avatarEl = document.getElementById("userAvatar");
+            const avatarUrl = data.avatar
+              ? `${store.state.server}/avatar/${data.avatar}`
+              : "/default-pfp.svg";
+            loadProtectedImage(avatarUrl, store.state.token, avatarEl);
+
+            const usernameEl = document.getElementById("navbarUsername");
+            usernameEl.innerText = data.username;
+          });
+      }
+    };
+
+    $onMounted(async () => {
+      await store.dispatch("loadPersistedState");
+
+      const token = store.state.token;
+      const server = store.state.server;
+
+      const redirectToLogin = () => {
+        setTimeout(() => {
+          if ($f7?.views?.main?.router) {
+            $f7.views.main.router.navigate("/login");
+          } else {
+            window.location.href = "/login";
+          }
+        }, 0);
+      };
+
+      if (token) {
+        try {
+          const res = await fetch(`${server}/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) throw new Error("Token invalid");
+          const data = await res.json();
+          store.dispatch("setAuth", { token, username: data.username });
+        } catch (err) {
+          console.warn("Auth failed", err.message);
+          store.dispatch("clearAuth");
+          redirectToLogin();
+          return;
+        }
+      } else {
+        redirectToLogin();
+        return;
+      }
+
+      updateNavbar();
+      $f7.on("routeChange", updateNavbar);
+
+      const avatar = document.getElementById("userAvatar");
+      const dropdown = document.getElementById("userDropdown");
+
+      avatar?.addEventListener("click", () => {
+        const rect = avatar.getBoundingClientRect();
+        dropdown.style.display =
+          dropdown.style.display === "flex" ? "none" : "flex";
+        dropdown.style.top = `${rect.bottom + 4}px`;
+        dropdown.style.left = `${rect.right - dropdown.offsetWidth}px`;
+      });
+
+      document.addEventListener("click", (e) => {
+        if (
+          !e.target.closest("#userDropdown") &&
+          !e.target.closest("#userAvatar")
+        ) {
+          dropdown.style.display = "none";
+        }
+      });
+
+      document.getElementById("logoutButton")?.addEventListener("click", () => {
+        store.dispatch("clearAuth");
+        window.location.href = "/login";
+      });
+    });
+
+    return $render;
+  };
+</script>
+
+<style>
+  .navbar .right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    font-size: 0.9rem;
+    padding-right: 8px;
+  }
+
+  #userAvatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    object-fit: cover;
+    border: 1px solid #ccc;
+    flex-shrink: 0;
+  }
+
+  #navbarUsername {
+    font-size: 14px;
+    max-width: 100px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    color: #eee;
+  }
+
+  .user-dropdown {
+    position: fixed;
+    display: none;
+    flex-direction: column;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 9999;
+    min-width: 140px;
+  }
+
+  .user-dropdown .dropdown-item {
+    padding: 10px 14px;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #333;
+    font-size: 0.9rem;
+    width: 100%;
+  }
+
+  .user-dropdown .dropdown-item:hover {
+    background-color: #f2f2f2;
+  }
+</style>

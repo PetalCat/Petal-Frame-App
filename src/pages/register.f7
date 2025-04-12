@@ -1,0 +1,82 @@
+<template>
+  <div class="page">
+    <div class="page-content">
+      <form id="registerForm" class="list no-hairlines-md">
+        <ul>
+          <li class="item-content item-input">
+            <div class="item-inner">
+              <div class="item-title item-label">Username</div>
+              <div class="item-input-wrap">
+                <input type="text" name="username" required />
+              </div>
+            </div>
+          </li>
+          <li class="item-content item-input">
+            <div class="item-inner">
+              <div class="item-title item-label">Password</div>
+              <div class="item-input-wrap">
+                <input type="password" name="password" required />
+              </div>
+            </div>
+          </li>
+          <li class="item-content item-input">
+            <div class="item-inner">
+              <div class="item-title item-label">Server</div>
+              <div class="item-input-wrap">
+                <input type="text" name="server" required />
+              </div>
+            </div>
+          </li>
+        </ul>
+        <div class="block">
+          <button class="button button-fill" type="submit">Register</button>
+        </div>
+      </form>
+      <div class="block" id="registerStatus"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  import store from "../js/store.js";
+  import { isMobile } from "../js/utils.js";
+
+  export default (props, { $onMounted, $f7 }) => {
+    $onMounted(() => {
+      const form = document.getElementById("registerForm");
+      const status = document.getElementById("registerStatus");
+      const serverField = form.querySelector("input[name='server']");
+      serverField.value = store.state.server;
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        status.innerText = "Signing up...";
+
+        const formData = new FormData(form);
+        const server = formData.get("server");
+        store.dispatch("setServer", server);
+
+        try {
+          const res = await fetch(`${server}/register`, {
+            method: "POST",
+            body: formData,
+          });
+          if (!res.ok) throw new Error("Registration failed");
+          status.innerText = "✅ Registered! Redirecting to login...";
+
+          setTimeout(() => {
+            if (isMobile()) {
+              $f7.views.main.router.navigate("/login");
+            } else {
+              window.location.href = "/login";
+            }
+          }, 1000);
+        } catch (err) {
+          status.innerText = `❌ ${err.message}`;
+        }
+      });
+    });
+
+    return $render;
+  };
+</script>
