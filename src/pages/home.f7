@@ -28,7 +28,6 @@
 
       <!-- Media Gallery -->
       <div class="media-gallery block">
-        <h2>Recent Uploads</h2>
         <div id="mediaGrid" class="media-grid"></div>
       </div>
     </div>
@@ -128,7 +127,7 @@
   };
 </script>
 
-<style>
+<!-- <style>
   .media-gallery {
     margin-top: 2rem;
   }
@@ -183,4 +182,4 @@
     margin-bottom: 4px;
     color: #111;
   }
-</style>
+</style> -->
