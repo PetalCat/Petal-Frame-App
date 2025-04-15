@@ -33,6 +33,7 @@
 
 <script>
   import store from "./js/store.js";
+
   async function loadProtectedImage(url, token, imgElement) {
     try {
       if (url.startsWith("/")) {
@@ -98,7 +99,7 @@
       document.addEventListener("click", (e) => {
         if (
           !e.target.closest("#userDropdown") &&
-          !e.target.closest("#userAvatar")
+          !e.target.closest("#bottomAvatar")
         ) {
           document.getElementById("userDropdown").style.display = "none";
         }
@@ -114,32 +115,48 @@
           const page = el.dataset.page;
           const router = $f7?.views?.main?.router;
 
-          console.log("🔍 Tab clicked:", page);
-          if (!router) {
-            console.warn("❌ Router not available");
-            return;
-          }
-
-          if (!page) {
-            console.warn("❌ No data-page on tab link");
-            return;
-          }
+          if (!router || !page) return;
 
           let target;
           if (page === "home") {
             target = "/";
           } else if (page === "profile") {
-            // Navigate to specific profile using username from the store.
             target = `/profile/${store.state.username}`;
           } else {
             target = `/${page}`;
           }
 
-          console.log("📦 Navigating to:", target);
           router.navigate(target);
         });
       });
+
+      // Long-press to show user dropdown
+      const dropdown = document.getElementById("userDropdown");
+      const avatarBtn = document.getElementById("bottomAvatar");
+      let pressTimer;
+
+      avatarBtn.addEventListener("mousedown", () => {
+        pressTimer = setTimeout(() => {
+          const rect = avatarBtn.getBoundingClientRect();
+          dropdown.style.left = `${rect.left}px`;
+          dropdown.style.top = `${rect.top - 80}px`;
+          dropdown.style.display = "flex";
+        }, 500);
+      });
+      avatarBtn.addEventListener("mouseup", () => clearTimeout(pressTimer));
+      avatarBtn.addEventListener("mouseleave", () => clearTimeout(pressTimer));
+
+      avatarBtn.addEventListener("touchstart", () => {
+        pressTimer = setTimeout(() => {
+          const rect = avatarBtn.getBoundingClientRect();
+          dropdown.style.left = `${rect.left}px`;
+          dropdown.style.top = `${rect.top - 80}px`;
+          dropdown.style.display = "flex";
+        }, 500);
+      });
+      avatarBtn.addEventListener("touchend", () => clearTimeout(pressTimer));
     });
+
     return $render;
   };
 </script>
@@ -181,12 +198,6 @@
     object-fit: cover;
     border: 1px solid #ccc;
     margin-bottom: 2px;
-  }
-
-  @media (min-width: 641px) {
-    .bottom-tabbar {
-      display: none;
-    }
   }
 
   /* 🌒 Dark Mode */
