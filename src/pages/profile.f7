@@ -111,9 +111,27 @@
       if (!room) return;
 
       [...room.children].forEach((child) => {
-        // Skip if already wrapped
-        if (child.classList.contains("edit-block")) return;
+        // Skip already wrapped or pf-banner
+        if (
+          child.classList.contains("edit-block") ||
+          child.classList.contains("pf-banner")
+        )
+          return;
 
+        // Handle bio specifically
+        if (child.querySelector("pf-bio")) {
+          const textarea = document.createElement("textarea");
+          textarea.id = "edit-bio";
+          textarea.value = child.querySelector("pf-bio").textContent.trim();
+          const wrapper = document.createElement("div");
+          wrapper.className = "edit-block";
+          wrapper.style.marginBottom = "1rem";
+          wrapper.appendChild(textarea);
+          child.replaceWith(wrapper);
+          return;
+        }
+
+        // All other moveable elements
         const wrapper = document.createElement("div");
         wrapper.className = "edit-block";
         wrapper.draggable = true;
@@ -122,21 +140,16 @@
         wrapper.style.marginBottom = "1rem";
         wrapper.style.cursor = "move";
 
+        // Save the tag for later restore
         let tagName = "";
         if (child.classList.contains("pf-avatar")) tagName = "pf-avatar";
-        else if (
-          child.querySelector("img[src*='/banner/']") ||
-          child.innerText === "No banner set"
-        )
-          tagName = "pf-banner";
         else if (child.classList.contains("pf-feed-grid")) tagName = "pf-feed";
-        else if (child.querySelector("pf-name")) tagName = "pf-name";
-        else if (child.querySelector("pf-bio")) tagName = "pf-bio";
-
         wrapper.dataset.tag = tagName;
+
         wrapper.appendChild(child.cloneNode(true));
         child.replaceWith(wrapper);
 
+        // Enable drag
         wrapper.ondragstart = (e) => {
           room.dragged = wrapper;
           e.dataTransfer.setData("text/plain", "");
@@ -165,6 +178,15 @@
         if (block.classList.contains("edit-block")) {
           const tag = block.dataset.tag;
           if (tag === "pf-name" || tag === "pf-bio") {
+            if (block.querySelector("#edit-bio")) {
+              const bio = document.createElement("pf-bio");
+              bio.textContent = block.querySelector("#edit-bio").value;
+              const p = document.createElement("p");
+              p.appendChild(bio);
+              cleanRoom.appendChild(p);
+              return;
+            }
+
             const el = document.createElement(tag);
             el.innerHTML = block.innerText.trim();
             const wrapper = document.createElement(
