@@ -25,10 +25,6 @@
 
   async function loadProtectedImage(url, token, imgElement) {
     try {
-      if (url.startsWith("/")) {
-        imgElement.src = url;
-        return;
-      }
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -49,106 +45,166 @@
       const token = store.state.token;
       const server = store.state.server;
 
-      // --- Avatar Replacement ---
-      const avatarTags = container.querySelectorAll("pf-avatar");
-      console.log("🔁 Replacing", avatarTags.length, "pf-avatar tags.");
-      for (const tag of avatarTags) {
+      container.querySelectorAll("pf-avatar").forEach(async (tag) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "pf-avatar";
+
         const img = document.createElement("img");
         img.className = "pf-avatar";
-        img.style.width = "64px";
-        img.style.height = "64px";
-        img.style.borderRadius = "50%";
-        img.style.objectFit = "cover";
-        img.style.background = "#ccc";
         img.alt = username;
         img.src = "/default-pfp.svg";
 
         if (userData?.avatar) {
-          const avatarUrl = `${server}/avatar/${userData.avatar}`;
-          await loadProtectedImage(avatarUrl, token, img);
+          const url = `${server}/avatar/${userData.avatar}`;
+          await loadProtectedImage(url, token, img);
         }
 
-        if (tag.parentNode) tag.parentNode.replaceChild(img, tag);
-      }
+        wrapper.appendChild(img);
+        tag.replaceWith(wrapper);
+      });
 
-      // --- Banner Replacement ---
-      const bannerTags = container.querySelectorAll("pf-banner");
-      console.log("🎏 Replacing", bannerTags.length, "pf-banner tags.");
-      for (const tag of bannerTags) {
-        const bannerEl = document.createElement("div");
-        bannerEl.style.padding = "1rem";
-        bannerEl.style.marginBottom = "1rem";
-        bannerEl.style.borderRadius = "10px";
+      container.querySelectorAll("pf-banner").forEach((tag) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "pf-banner";
 
         if (userData?.banner) {
-          const bannerImg = document.createElement("img");
-          bannerImg.src = `${server}/banner/${userData.banner}`;
-          bannerImg.style.width = "100%";
-          bannerImg.style.borderRadius = "10px";
-          bannerEl.appendChild(bannerImg);
+          const img = document.createElement("img");
+          img.src = `${server}/banner/${userData.banner}`;
+          img.className = "pf-banner-img";
+          wrapper.appendChild(img);
         } else {
-          bannerEl.innerText = "No banner set";
-          bannerEl.style.background = "#ddd";
-          bannerEl.style.textAlign = "center";
+          wrapper.textContent = "No banner set";
         }
 
-        if (tag.parentNode) tag.parentNode.replaceChild(bannerEl, tag);
-      }
+        tag.replaceWith(wrapper);
+      });
 
-      // --- Feed Replacement ---
-      const feedTags = container.querySelectorAll("pf-feed");
-      console.log("📼 Replacing", feedTags.length, "pf-feed tags.");
-      for (const tag of feedTags) {
+      container.querySelectorAll("pf-feed").forEach(async (tag) => {
         try {
           const res = await fetch(`${server}/my_uploads`, {
             headers: { Authorization: `Bearer ${token}` },
           });
-          if (!res.ok) throw new Error("Failed to fetch uploads");
-
           const feed = await res.json();
-          const feedPosts = feed.slice().reverse();
           const wrapper = document.createElement("div");
           wrapper.className = "pf-feed-grid";
-          let currentCount = 4;
 
-          const loadMoreBtn = document.createElement("button");
-          loadMoreBtn.innerText = "Load More";
-          loadMoreBtn.style.display = "block";
-          loadMoreBtn.style.marginTop = "1rem";
-          loadMoreBtn.addEventListener("click", () => {
-            currentCount += 4;
-            renderPosts();
+          feed.reverse().forEach((item) => {
+            const video = document.createElement("video");
+            video.controls = true;
+            video.src = `${server}/uploads/${item.filename}`;
+            Object.assign(video.style, {
+              maxWidth: "100%",
+              marginTop: "1rem",
+            });
+            wrapper.appendChild(video);
           });
 
-          const renderPosts = () => {
-            wrapper.innerHTML = "";
-            const postsToShow = feedPosts.slice(0, currentCount);
-            for (const item of postsToShow) {
-              const video = document.createElement("video");
-              video.controls = true;
-              video.src = `${server}/uploads/${item.filename}`;
-              video.style.maxWidth = "100%";
-              video.style.marginTop = "1rem";
-              wrapper.appendChild(video);
-            }
-            if (currentCount < feedPosts.length) {
-              wrapper.appendChild(loadMoreBtn);
-            }
-          };
-
-          renderPosts();
-          if (tag.parentNode) tag.parentNode.replaceChild(wrapper, tag);
-        } catch (err) {
-          console.error("❌ Failed to load feed:", err);
-          if (tag.parentNode) {
-            tag.parentNode.replaceChild(
-              document.createTextNode("Unable to load feed."),
-              tag
-            );
-          }
+          tag.replaceWith(wrapper);
+        } catch {
+          tag.replaceWith(document.createTextNode("Unable to load feed."));
         }
-      }
+      });
     };
+
+    function enterEditMode(container) {
+      const room = container.querySelector(".pf-room");
+      if (!room) return;
+
+      [...room.children].forEach((child) => {
+        // Skip if already wrapped
+        if (child.classList.contains("edit-block")) return;
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "edit-block";
+        wrapper.draggable = true;
+        wrapper.style.border = "2px dashed #007aff";
+        wrapper.style.padding = "0.75rem";
+        wrapper.style.marginBottom = "1rem";
+        wrapper.style.cursor = "move";
+
+        let tagName = "";
+        if (child.classList.contains("pf-avatar")) tagName = "pf-avatar";
+        else if (
+          child.querySelector("img[src*='/banner/']") ||
+          child.innerText === "No banner set"
+        )
+          tagName = "pf-banner";
+        else if (child.classList.contains("pf-feed-grid")) tagName = "pf-feed";
+        else if (child.querySelector("pf-name")) tagName = "pf-name";
+        else if (child.querySelector("pf-bio")) tagName = "pf-bio";
+
+        wrapper.dataset.tag = tagName;
+        wrapper.appendChild(child.cloneNode(true));
+        child.replaceWith(wrapper);
+
+        wrapper.ondragstart = (e) => {
+          room.dragged = wrapper;
+          e.dataTransfer.setData("text/plain", "");
+        };
+        wrapper.ondragover = (e) => e.preventDefault();
+        wrapper.ondrop = (e) => {
+          e.preventDefault();
+          if (room.dragged && room.dragged !== wrapper) {
+            room.insertBefore(room.dragged, wrapper.nextSibling);
+          }
+        };
+      });
+    }
+
+    async function saveEdits(container) {
+      const room = container.querySelector(".pf-room");
+      if (!room) return;
+
+      const cleanRoom = document.createElement("div");
+      cleanRoom.className = "pf-room";
+      cleanRoom.style.textAlign = "center";
+      cleanRoom.style.padding = "2rem";
+
+      // Rebuild the content from edit blocks
+      [...room.children].forEach((block) => {
+        if (block.classList.contains("edit-block")) {
+          const tag = block.dataset.tag;
+          if (tag === "pf-name" || tag === "pf-bio") {
+            const el = document.createElement(tag);
+            el.innerHTML = block.innerText.trim();
+            const wrapper = document.createElement(
+              tag === "pf-name" ? "h1" : "p"
+            );
+            wrapper.appendChild(el);
+            cleanRoom.appendChild(wrapper);
+          } else if (tag) {
+            const el = document.createElement(tag);
+            cleanRoom.appendChild(el);
+          } else {
+            cleanRoom.appendChild(block.firstElementChild.cloneNode(true));
+          }
+        } else {
+          cleanRoom.appendChild(block.cloneNode(true));
+        }
+      });
+
+      // Wrap and combine <style> tags with content
+      const wrapper = document.createElement("div");
+      wrapper.appendChild(cleanRoom);
+
+      // Capture original <style> tags and prepend them to the final HTML
+      const styles = [...container.querySelectorAll("style")].map(
+        (s) => s.outerHTML
+      );
+      const newHtml = styles.join("") + wrapper.innerHTML;
+
+      const form = new URLSearchParams();
+      form.append("html", newHtml);
+
+      await fetch(`${store.state.server}/room/save`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${store.state.token}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+      });
+    }
 
     $onMounted(async () => {
       const username = $f7route.params.username;
@@ -156,44 +212,47 @@
       const server = store.state.server;
       const container = document.getElementById("profile-room-content");
 
-      let roomHtml = "";
       try {
         const res = await fetch(`${server}/room/${username}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        roomHtml = await res.text();
-        if (!roomHtml.includes("pf-")) {
-          roomHtml = `<div style="padding: 2rem;"><p>This user has no profile page yet.</p></div>`;
-        }
-      } catch (err) {
-        console.warn("onMounted: Failed to fetch room HTML:", err.message);
+        const html = await res.text();
+        originalRoomHtml = html;
+        container.innerHTML = html;
+      } catch {
+        container.innerHTML = "<p>Failed to load room.</p>";
+        return;
       }
-      originalRoomHtml = roomHtml;
-      console.log("onMounted: Fetched room HTML:", originalRoomHtml);
 
-      let userData = getCachedUser(username);
-      if (!userData || !userData.avatar) {
-        console.log("🌐 Fetching user data from /users:", username);
-        try {
-          const res = await fetch(`${server}/users/${username}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            userData = await res.json();
-            console.log("✅ Got user data from /users:", userData);
-            await store.dispatch("cacheUserData", userData);
-          }
-        } catch (err) {
-          console.warn("❌ Failed to fetch user data:", err);
-          userData = { username };
+      let userData = getCachedUser(username) || { username };
+      try {
+        const res = await fetch(`${server}/users/${username}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          userData = await res.json();
+          await store.dispatch("cacheUserData", userData);
         }
-      }
+      } catch {}
 
       currentUserData = userData;
-      console.log("onMounted: Using userData:", currentUserData);
-
-      container.innerHTML = originalRoomHtml;
       await renderCustomTags(container, username, userData);
+
+      const editBtn = document.querySelector(".edit-toggle");
+      editBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        if (!editMode) {
+          editMode = true;
+          editBtn.innerText = "Save";
+          enterEditMode(container);
+        } else {
+          await saveEdits(container);
+          editMode = false;
+          editBtn.innerText = "Edit";
+          container.innerHTML = originalRoomHtml;
+          await renderCustomTags(container, username, currentUserData);
+        }
+      });
     });
 
     return $render;
