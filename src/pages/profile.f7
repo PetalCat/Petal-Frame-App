@@ -1,0 +1,520 @@
+<template>
+  <div class="page">
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="left"><a href="#" class="back link">Back</a></div>
+        <div class="title">Profile</div>
+        <div class="right">
+          <a href="#" class="edit-toggle">Edit</a>
+        </div>
+      </div>
+    </div>
+    <div class="page-content">
+      <div
+        id="profile-room-content"
+        style="padding: 1rem; font-family: sans-serif"
+      >
+        Loading profile...
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  // Define custom elements with logging.
+  console.log("Checking custom elements definitions...");
+  [
+    "pf-avatar",
+    "pf-name",
+    "pf-bio",
+    "pf-feed",
+    "pf-banner",
+    "pf-status",
+  ].forEach((tag) => {
+    console.log(`Checking custom element: ${tag}`);
+    if (!window.customElements.get(tag)) {
+      console.log(`Custom element "${tag}" not defined; defining now.`);
+      class CustomElement extends HTMLElement {}
+      try {
+        window.customElements.define(tag, CustomElement);
+        console.log(`Custom element "${tag}" defined successfully.`);
+      } catch (err) {
+        console.error(`Failed to define custom element "${tag}":`, err);
+      }
+    } else {
+      console.log(`Custom element "${tag}" is already defined.`);
+    }
+  });
+
+  import store, { getCachedUser } from "../js/store.js";
+
+  // Reuse your loadProtectedImage function.
+  async function loadProtectedImage(url, token, imgElement) {
+    try {
+      if (url.startsWith("/")) {
+        imgElement.src = url;
+        return;
+      }
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load image");
+      const blob = await res.blob();
+      imgElement.src = URL.createObjectURL(blob);
+    } catch {
+      imgElement.src = "/default-pfp.svg";
+    }
+  }
+
+  export default (props, { $, $onMounted, $f7route }) => {
+    let originalRoomHtml = "";
+    let editMode = false;
+    let currentUserData = {};
+
+    // Render view mode: restore the original HTML then process custom tags.
+    const renderViewMode = (container, username, userData) => {
+      container.innerHTML = originalRoomHtml;
+      console.log(
+        "renderViewMode: Container innerHTML on load:",
+        container.innerHTML
+      );
+      // Log nested pf-bio tags from within <p> to check for content.
+      const nestedPfBio = container.querySelectorAll("p > pf-bio");
+      nestedPfBio.forEach((el, idx) => {
+        console.log(
+          `renderViewMode: Found <pf-bio> nested in <p> #${idx}:`,
+          el.outerHTML,
+          "innerHTML:",
+          el.innerHTML
+        );
+      });
+      requestAnimationFrame(() => {
+        renderCustomTags(container, username, userData);
+      });
+    };
+
+    // Render custom tags in view mode.
+    const renderCustomTags = async (container, username, userData) => {
+      console.log(
+        "renderCustomTags: Starting processing. Current container HTML:",
+        container.innerHTML
+      );
+      const token = store.state.token;
+      const server = store.state.server;
+
+      // Avatar replacement.
+      const avatarTags = container.querySelectorAll("pf-avatar");
+      console.log(
+        "renderCustomTags: Found",
+        avatarTags.length,
+        "pf-avatar tags."
+      );
+      for (const tag of avatarTags) {
+        console.log(
+          "renderCustomTags: Processing a pf-avatar tag:",
+          tag.outerHTML
+        );
+        const img = document.createElement("img");
+        img.className = "pf-avatar";
+        img.style.width = "64px";
+        img.style.height = "64px";
+        img.style.borderRadius = "50%";
+        img.style.objectFit = "cover";
+        img.style.background = "#ccc";
+        img.alt = username;
+        img.src = "/default-pfp.svg";
+        if (userData?.avatar) {
+          await loadProtectedImage(
+            `${server}/avatar/${userData.avatar}`,
+            token,
+            img
+          );
+        }
+        if (tag.parentNode) {
+          tag.parentNode.replaceChild(img, tag);
+          console.log(
+            "renderCustomTags: Replaced pf-avatar with:",
+            img.outerHTML
+          );
+        }
+      }
+
+      // Name replacement.
+      const nameTags = container.querySelectorAll("pf-name");
+      console.log("renderCustomTags: Found", nameTags.length, "pf-name tags.");
+      for (const tag of nameTags) {
+        console.log(
+          "renderCustomTags: Processing a pf-name tag:",
+          tag.outerHTML
+        );
+        const el = document.createElement("strong");
+        el.innerText = userData?.username || username;
+        if (tag.parentNode) {
+          tag.parentNode.replaceChild(el, tag);
+          console.log("renderCustomTags: Replaced pf-name with:", el.outerHTML);
+        }
+      }
+
+      // Bio replacement.
+      const bioTags = container.querySelectorAll("pf-bio");
+      console.log("renderCustomTags: Found", bioTags.length, "pf-bio tags.");
+      bioTags.forEach((tag, idx) => {
+        console.log(
+          "renderCustomTags: Processing pf-bio tag #",
+          idx,
+          ":",
+          tag.outerHTML,
+          "with innerHTML:",
+          tag.innerHTML
+        );
+        // Use the cached userData.bio if available, otherwise use the current tag content.
+        const bioText =
+          userData?.bio ||
+          tag.innerText ||
+          "This user hasn't written a bio yet.";
+        const el = document.createElement("p");
+        el.innerText = bioText;
+        el.style.opacity = "0.6";
+        if (tag.parentNode) {
+          tag.parentNode.replaceChild(el, tag);
+          console.log("renderCustomTags: Replaced pf-bio with:", el.outerHTML);
+        }
+      });
+
+      // Banner replacement.
+      const bannerTags = container.querySelectorAll("pf-banner");
+      console.log(
+        `renderCustomTags: Found ${bannerTags.length} pf-banner tags.`
+      );
+      for (const tag of bannerTags) {
+        const bannerEl = document.createElement("div");
+        bannerEl.style.padding = "1rem";
+        bannerEl.style.marginBottom = "1rem";
+        bannerEl.style.borderRadius = "10px";
+        if (userData?.banner) {
+          const bannerImg = document.createElement("img");
+          bannerImg.src = `${server}/banner/${userData.banner}`;
+          bannerImg.style.width = "100%";
+          bannerImg.style.borderRadius = "10px";
+          bannerEl.appendChild(bannerImg);
+        } else {
+          bannerEl.innerText = "No banner set";
+          bannerEl.style.background = "#ddd";
+        }
+        if (tag.parentNode) {
+          tag.parentNode.replaceChild(bannerEl, tag);
+          console.log(
+            "renderCustomTags: Replaced pf-banner with:",
+            bannerEl.outerHTML
+          );
+        }
+      }
+
+      // Feed replacement.
+      const feedTags = container.querySelectorAll("pf-feed");
+      console.log("renderCustomTags: Found", feedTags.length, "pf-feed tags.");
+      for (const tag of feedTags) {
+        (async () => {
+          try {
+            const feedRes = await fetch(`${server}/my_uploads`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const feed = await feedRes.json();
+            const feedPosts = feed.slice().reverse();
+            let currentCount = 4;
+            const wrapper = document.createElement("div");
+            wrapper.className = "pf-feed-grid";
+
+            const loadMoreBtn = document.createElement("button");
+            loadMoreBtn.innerText = "Load More";
+            loadMoreBtn.style.display = "block";
+            loadMoreBtn.style.marginTop = "1rem";
+            loadMoreBtn.addEventListener("click", () => {
+              currentCount += 4;
+              renderPosts();
+            });
+
+            const renderPosts = () => {
+              wrapper.innerHTML = "";
+              const postsToShow = feedPosts.slice(0, currentCount);
+              for (const item of postsToShow) {
+                const video = document.createElement("video");
+                video.controls = true;
+                video.src = `${server}/uploads/${item.filename}`;
+                video.style.maxWidth = "100%";
+                video.style.marginTop = "1rem";
+                wrapper.appendChild(video);
+              }
+              if (currentCount < feedPosts.length) {
+                wrapper.appendChild(loadMoreBtn);
+              }
+            };
+
+            renderPosts();
+            if (tag.parentNode) {
+              tag.parentNode.replaceChild(wrapper, tag);
+              console.log(
+                "renderCustomTags: Replaced pf-feed with wrapper containing videos."
+              );
+            }
+          } catch (error) {
+            console.error("renderCustomTags: Error loading feed:", error);
+            if (tag.parentNode) {
+              tag.parentNode.replaceChild(
+                document.createTextNode("Unable to load feed."),
+                tag
+              );
+            }
+          }
+        })();
+      }
+    };
+
+    // Render edit mode: restore original HTML then replace editable areas with inputs.
+    const renderEditMode = (container, username, userData) => {
+      console.log("renderEditMode: Restoring original HTML for editing.");
+      container.innerHTML = originalRoomHtml;
+      // Replace <pf-name> with a text input.
+      const nameTags = container.querySelectorAll("pf-name");
+      nameTags.forEach((tag) => {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.id = "edit-name";
+        input.value = userData.username || username;
+        if (tag.parentNode) {
+          tag.parentNode.replaceChild(input, tag);
+          console.log(
+            "renderEditMode: Replaced pf-name with input:",
+            input.outerHTML
+          );
+        }
+      });
+      // Replace <pf-bio> with a textarea.
+      const bioTags = container.querySelectorAll("pf-bio");
+      bioTags.forEach((tag) => {
+        const textarea = document.createElement("textarea");
+        textarea.id = "edit-bio";
+        textarea.value = userData.bio || "";
+        if (tag.parentNode) {
+          tag.parentNode.replaceChild(textarea, tag);
+          console.log(
+            "renderEditMode: Replaced pf-bio with textarea:",
+            textarea.outerHTML
+          );
+        }
+      });
+    };
+
+    // Save edits: update the HTML using a temporary DOM container, then post to the backend.
+    const saveEdits = async (container, username) => {
+      console.log("saveEdits: Starting saveEdits function.");
+      const nameInput = container.querySelector("#edit-name");
+      const bioTextarea = container.querySelector("#edit-bio");
+      const newName = nameInput ? nameInput.value : username;
+      const newBio = bioTextarea ? bioTextarea.value : "";
+      console.log("saveEdits: newName =", newName, "newBio =", newBio);
+
+      const tempContainer = document.createElement("div");
+      tempContainer.innerHTML = originalRoomHtml;
+      console.log("saveEdits: originalRoomHtml =", originalRoomHtml);
+
+      tempContainer.querySelectorAll("pf-name").forEach((el) => {
+        el.innerHTML = newName;
+        console.log("saveEdits: updated <pf-name> element:", el.outerHTML);
+      });
+      tempContainer.querySelectorAll("pf-bio").forEach((el) => {
+        el.innerHTML = newBio;
+        console.log("saveEdits: updated <pf-bio> element:", el.outerHTML);
+      });
+
+      if (!tempContainer.firstElementChild) {
+        console.error("saveEdits: tempContainer has no firstElementChild!");
+        return false;
+      }
+      const newHtml = tempContainer.firstElementChild.outerHTML;
+      console.log("saveEdits: newHtml generated:", newHtml);
+
+      currentUserData.username = newName;
+      currentUserData.bio = newBio;
+      const token = store.state.token;
+      const server = store.state.server;
+      try {
+        const formData = new URLSearchParams();
+        formData.append("html", newHtml);
+        console.log("saveEdits: Sending formData:", formData.toString());
+        const res = await fetch(`${server}/room/save`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData.toString(),
+        });
+        const result = await res.json();
+        console.log("saveEdits: result from server:", result);
+        if (result.status === "saved") {
+          originalRoomHtml = newHtml;
+          console.log("saveEdits: Save successful, updated originalRoomHtml.");
+          return true;
+        } else {
+          throw new Error("Save failed");
+        }
+      } catch (err) {
+        console.error("saveEdits: Error saving edits:", err);
+        return false;
+      }
+    };
+
+    // Update content from server: use cache initially, then fetch the latest server version, compare, and update only changed content.
+    const updateFromServer = (container, username) => {
+      const token = store.state.token;
+      const server = store.state.server;
+      fetch(`${server}/room/${username}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.text())
+        .then((newRoomHtml) => {
+          console.log(
+            "updateFromServer: Fetched updated room HTML from server:",
+            newRoomHtml
+          );
+          if (newRoomHtml !== originalRoomHtml) {
+            console.log(
+              "updateFromServer: Differences detected between cached and server version."
+            );
+            // Create a temporary container to parse the new HTML.
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = newRoomHtml;
+            // Extract new custom data.
+            const serverName = tempDiv
+              .querySelector("pf-name")
+              ?.innerText.trim();
+            const serverBio = tempDiv.querySelector("pf-bio")?.innerText.trim();
+            console.log(
+              "updateFromServer: Server name =",
+              serverName,
+              "Server bio =",
+              serverBio
+            );
+            // Update name if different.
+            if (serverName && serverName !== currentUserData.username) {
+              console.log(
+                "updateFromServer: Updating username from",
+                currentUserData.username,
+                "to",
+                serverName
+              );
+              const nameEl = container.querySelector("strong");
+              if (nameEl) {
+                nameEl.innerText = serverName;
+              }
+              currentUserData.username = serverName;
+            } else {
+              console.log(
+                "updateFromServer: Username identical; no update needed."
+              );
+            }
+            // Update bio if different.
+            if (serverBio && serverBio !== currentUserData.bio) {
+              console.log(
+                "updateFromServer: Updating bio from",
+                currentUserData.bio,
+                "to",
+                serverBio
+              );
+              // Find the rendered bio element (assume its style includes opacity: 0.6)
+              const bioEl = container.querySelector("p[style*='opacity']");
+              if (bioEl) {
+                bioEl.innerText = serverBio;
+              }
+              currentUserData.bio = serverBio;
+            } else {
+              console.log("updateFromServer: Bio identical; no update needed.");
+            }
+            // Update our cached original HTML.
+            originalRoomHtml = newRoomHtml;
+          } else {
+            console.log(
+              "updateFromServer: Server room HTML identical to cached version. No update needed."
+            );
+          }
+        })
+        .catch((err) => {
+          console.error(
+            "updateFromServer: Failed to fetch server update:",
+            err
+          );
+        });
+    };
+
+    $onMounted(async () => {
+      const username = $f7route.params.username;
+      const token = store.state.token;
+      const server = store.state.server;
+      const container = document.getElementById("profile-room-content");
+      const editBtn = document.querySelector(".edit-toggle");
+
+      let roomHtml = "";
+      try {
+        const res = await fetch(`${server}/room/${username}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        roomHtml = await res.text();
+        if (!roomHtml.includes("pf-")) {
+          roomHtml = `<div style="padding: 2rem;"><p>This user has no profile page yet.</p></div>`;
+        }
+      } catch (err) {
+        console.warn("onMounted: Failed to fetch room HTML:", err.message);
+      }
+      originalRoomHtml = roomHtml;
+      console.log("onMounted: Fetched room HTML:", originalRoomHtml);
+
+      let userData = getCachedUser(username);
+      if (!userData) {
+        userData = { username };
+      }
+      currentUserData = userData;
+      console.log("onMounted: Using userData:", currentUserData);
+
+      renderViewMode(container, username, userData);
+      // After initial render using cache, update from server.
+      updateFromServer(container, username);
+
+      editBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        if (!editMode) {
+          editMode = true;
+          editBtn.innerText = "Save";
+          renderEditMode(container, username, currentUserData);
+        } else {
+          const success = await saveEdits(container, username);
+          if (success) {
+            editMode = false;
+            editBtn.innerText = "Edit";
+            renderViewMode(container, username, currentUserData);
+            // Optionally, update from server again after saving.
+            updateFromServer(container, username);
+          } else {
+            console.error("onMounted: Failed to save edits.");
+          }
+        }
+      });
+    });
+
+    return $render;
+  };
+</script>
+
+<style>
+  .navbar .right {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .navbar .edit-toggle {
+    color: #007aff;
+    font-weight: bold;
+    cursor: pointer;
+  }
+</style>

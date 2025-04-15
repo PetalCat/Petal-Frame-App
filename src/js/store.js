@@ -6,7 +6,8 @@ const store = createStore({
     token: null,
     username: null,
     server: "https://base.petalcat.dev",
-    feed: [],
+    userCache: {},
+    feed: [], // Initialize feed as an empty array for caching
   },
   actions: {
     async loadPersistedState({ state }) {
@@ -14,9 +15,11 @@ const store = createStore({
       state.username = localStorage.getItem("username");
       const server = localStorage.getItem("server");
       if (server) state.server = server;
-
-      const feed = await localforage.getItem("feed");
-      if (feed) state.feed = feed;
+      const userCache = await localforage.getItem("userCache");
+      if (userCache) state.userCache = userCache;
+      // Load persisted feed if available
+      const persistedFeed = await localforage.getItem("feed");
+      if (persistedFeed) state.feed = persistedFeed;
     },
     setAuth({ state }, { token, username }) {
       state.token = token;
@@ -34,6 +37,16 @@ const store = createStore({
       state.server = server;
       localStorage.setItem("server", server);
     },
+    async cacheUserData({ state }, user) {
+      if (!user || !user.username) return;
+      const key = user.username.toLowerCase();
+      state.userCache[key] = {
+        ...user,
+        lastUpdated: Date.now(),
+      };
+      await localforage.setItem("userCache", state.userCache);
+    },
+    // New action to set and persist the feed data for caching
     async setFeed({ state }, feed) {
       state.feed = feed;
       await localforage.setItem("feed", feed);
@@ -49,10 +62,13 @@ const store = createStore({
     server({ state }) {
       return state.server;
     },
-    feed({ state }) {
-      return state.feed;
-    },
   },
 });
+
+export function getCachedUser(username) {
+  if (!username) return null;
+  const key = username.toLowerCase();
+  return store.state.userCache[key] || null;
+}
 
 export default store;

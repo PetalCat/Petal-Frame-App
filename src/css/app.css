@@ -204,6 +204,33 @@
 		margin: 8px 0;
 		padding: 12px;
 	}
+	input,
+	textarea,
+	select {
+		color: #f0f0f0;
+		background-color: #1a1a1a;
+		border: 1px solid #444;
+	}
+
+	input::placeholder,
+	textarea::placeholder {
+		color: #888;
+	}
+
+	.item-label,
+	.item-title {
+		color: #ccc !important;
+	}
+
+	.item-input-wrap input,
+	.item-input-wrap textarea {
+		color: #f0f0f0 !important;
+	}
+
+	.item-input-wrap input::placeholder,
+	.item-input-wrap textarea::placeholder {
+		color: #888 !important;
+	}
 }
 
 /* 📱 Responsive layout tweak for smaller screens */
@@ -240,4 +267,11 @@
 		padding-left: 1rem;
 		padding-right: 1rem;
 	}
+}
+.pf-avatar {
+	width: 64px;
+	height: 64px;
+	border-radius: 50%;
+	object-fit: cover;
+	background: #ccc;
 }

@@ -1,31 +1,7 @@
 <template>
   <div class="page">
     <div class="page-content">
-      <form id="uploadForm" class="list no-hairlines-md">
-        <ul>
-          <li class="item-content item-input">
-            <div class="item-inner">
-              <div class="item-title item-label">Caption</div>
-              <div class="item-input-wrap">
-                <input type="text" name="caption" />
-              </div>
-            </div>
-          </li>
-          <li class="item-content item-input">
-            <div class="item-inner">
-              <div class="item-title item-label">Video</div>
-              <div class="item-input-wrap">
-                <input type="file" name="file" accept="video/*" required />
-              </div>
-            </div>
-          </li>
-        </ul>
-        <div class="block">
-          <button class="button button-fill" type="submit">Upload</button>
-        </div>
-      </form>
       <div class="block" id="statusBlock"></div>
-
       <!-- Media Gallery -->
       <div class="media-gallery block">
         <div id="mediaGrid" class="media-grid"></div>
@@ -42,16 +18,35 @@
       const token = store.state.token;
       const server = store.state.server;
 
+      // If no token, redirect to login.
       if (!token) {
         $f7.views.main.router.navigate("/login");
         return;
       }
 
-      const form = document.getElementById("uploadForm");
       const status = document.getElementById("statusBlock");
       const mediaGrid = document.getElementById("mediaGrid");
 
+      // Use cached feed if available or default to empty array.
+      const cachedFeed = Array.isArray(store.state.feed)
+        ? store.state.feed
+        : [];
+      if (!Array.isArray(store.state.feed)) {
+        console.warn(
+          "Feed is undefined in the store; initializing to an empty array."
+        );
+        // You may need to ensure that your store's initial state already sets feed to []
+        // or update it here.
+        store.dispatch("setFeed", []);
+      }
+
+      // Function to render the media feed.
       const renderFeed = (feed) => {
+        // Ensure feed is an array.
+        if (!Array.isArray(feed)) {
+          console.error("renderFeed: Expected an array but got:", feed);
+          return;
+        }
         mediaGrid.innerHTML = "";
         feed.forEach((item) => {
           const avatarId = `avatar-${item.username}-${item.filename}`;
@@ -71,6 +66,7 @@
 					`;
           mediaGrid.appendChild(card);
 
+          // If there's an avatar, fetch and update it.
           if (item.avatar) {
             fetch(`${server}/avatar/${item.avatar}`, {
               headers: { Authorization: `Bearer ${token}` },
@@ -86,52 +82,46 @@
         });
       };
 
-      // Render cached feed first
-      renderFeed(store.state.feed);
+      // Render the initial (cached or default empty) feed.
+      renderFeed(cachedFeed);
 
-      // Fetch fresh feed
+      // Fetch fresh feed from the API.
       fetch(`${server}/feed`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            // Throw an error if the network response is bad.
+            throw new Error("Network response was not ok");
+          }
+          return res.json();
+        })
         .then(async (feed) => {
-          await store.dispatch("setFeed", feed);
+          console.log("Fetched feed:", feed);
+          // Validate that the fetched feed is an array.
+          if (!Array.isArray(feed)) {
+            console.error("Fetched feed is not an array, got:", feed);
+            feed = [];
+          }
+          // Update the store with the fetched feed.
+          try {
+            await store.dispatch("setFeed", feed);
+          } catch (dispatchError) {
+            console.error("Error setting feed in store:", dispatchError);
+          }
+          // Render the fetched feed.
           renderFeed(feed);
+        })
+        .catch((error) => {
+          console.error("Error fetching feed:", error);
         });
-
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        status.innerText = "Uploading...";
-        const formData = new FormData(form);
-
-        try {
-          const res = await fetch(`${server}/upload`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            body: formData,
-          });
-
-          if (!res.ok) throw new Error("Upload failed");
-          const data = await res.json();
-          status.innerText = `✅ Uploaded! ID: ${data.id}`;
-          form.reset();
-        } catch (err) {
-          status.innerText = `❌ Error: ${err.message}`;
-        }
-      });
     });
 
     return $render;
   };
 </script>
 
-<!-- <style>
-  .media-gallery {
-    margin-top: 2rem;
-  }
-
+<style>
   .media-grid {
     display: flex;
     flex-direction: column;
@@ -147,39 +137,4 @@
     max-width: 600px;
     margin: 0 auto;
   }
-
-  .media-card video {
-    width: 100%;
-    max-height: 60vh;
-    border-radius: 8px;
-    object-fit: cover;
-  }
-
-  .media-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 0.5rem;
-  }
-
-  .media-header .avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-    background: #ccc;
-  }
-
-  .media-card .meta {
-    color: #333;
-    margin-top: 0.5rem;
-  }
-
-  .media-card .meta strong {
-    display: block;
-    font-size: 14px;
-    margin-bottom: 4px;
-    color: #111;
-  }
-</style> -->
+</style>

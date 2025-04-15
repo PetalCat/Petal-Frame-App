@@ -1,4 +1,7 @@
 import HomePage from "../pages/home.f7";
+import UploadPage from "../pages/upload.f7";
+import GalleryPage from "../pages/gallery.f7";
+import ProfilePage from "../pages/profile.f7";
 import LoginPage from "../pages/login.f7";
 import RegisterPage from "../pages/register.f7";
 import SettingsPage from "../pages/settings.f7";
@@ -9,6 +12,22 @@ const routes = [
   {
     path: "/",
     component: HomePage,
+  },
+  {
+    path: "/home",
+    component: HomePage,
+  },
+  {
+    path: "/upload",
+    component: UploadPage,
+  },
+  {
+    path: "/gallery",
+    component: GalleryPage,
+  },
+  {
+    path: "/profile/:username",
+    component: ProfilePage,
   },
   {
     path: "/login",
