@@ -23,202 +23,355 @@
 <script>
   import store, { getCachedUser } from "../js/store.js";
 
-  async function loadProtectedImage(url, token, imgElement) {
-    try {
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to load image");
-      const blob = await res.blob();
-      imgElement.src = URL.createObjectURL(blob);
-    } catch {
-      imgElement.src = "/default-pfp.svg";
-    }
-  }
-
   export default (props, { $, $onMounted, $f7route }) => {
     let originalRoomHtml = "";
     let editMode = false;
     let currentUserData = {};
 
-    const renderCustomTags = async (container, username, userData) => {
-      const token = store.state.token;
-      const server = store.state.server;
+    const tagsWithTextContent = new Set(["pf-name", "pf-bio"]);
 
-      container.querySelectorAll("pf-avatar").forEach(async (tag) => {
+    const customTagRenderers = {
+      "pf-avatar": async (tag, userData, server, token) => {
         const wrapper = document.createElement("div");
-        wrapper.className = "pf-avatar";
-
+        wrapper.className = "pf-avatar rendered-tag";
+        wrapper.dataset.tag = "pf-avatar";
+        for (const attr of tag.attributes) {
+          wrapper.dataset[`attr_${attr.name}`] = attr.value;
+        }
         const img = document.createElement("img");
         img.className = "pf-avatar";
-        img.alt = username;
+        img.alt = userData?.username || "Avatar";
         img.src = "/default-pfp.svg";
-
         if (userData?.avatar) {
-          const url = `${server}/avatar/${userData.avatar}`;
-          await loadProtectedImage(url, token, img);
+          try {
+            const res = await fetch(`${server}/avatar/${userData.avatar}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const blob = await res.blob();
+              img.src = URL.createObjectURL(blob);
+            }
+          } catch {}
         }
-
         wrapper.appendChild(img);
         tag.replaceWith(wrapper);
-      });
+      },
 
-      container.querySelectorAll("pf-banner").forEach((tag) => {
+      "pf-name": (tag, userData) => {
         const wrapper = document.createElement("div");
-        wrapper.className = "pf-banner";
+        wrapper.className = "pf-name rendered-tag";
+        wrapper.dataset.tag = "pf-name";
+        for (const attr of tag.attributes) {
+          wrapper.dataset[`attr_${attr.name}`] = attr.value;
+        }
+        wrapper.textContent = userData?.name || userData?.username || "Unknown";
+        tag.replaceWith(wrapper);
+      },
 
-        if (userData?.banner) {
-          const img = document.createElement("img");
-          img.src = `${server}/banner/${userData.banner}`;
-          img.className = "pf-banner-img";
-          wrapper.appendChild(img);
-        } else {
-          wrapper.textContent = "No banner set";
+      "pf-bio": (tag) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "pf-bio rendered-tag";
+        wrapper.dataset.tag = "pf-bio";
+        for (const attr of tag.attributes) {
+          wrapper.dataset[`attr_${attr.name}`] = attr.value;
+        }
+        wrapper.textContent = tag.textContent.trim();
+        tag.replaceWith(wrapper);
+      },
+      "pf-feed": async (tag, userData, server, token) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "pf-feed-grid rendered-tag";
+        wrapper.dataset.tag = "pf-feed";
+
+        for (const attr of tag.attributes) {
+          wrapper.dataset[`attr_${attr.name}`] = attr.value;
         }
 
-        tag.replaceWith(wrapper);
-      });
-
-      container.querySelectorAll("pf-feed").forEach(async (tag) => {
         try {
           const res = await fetch(`${server}/my_uploads`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           const feed = await res.json();
-          const wrapper = document.createElement("div");
-          wrapper.className = "pf-feed-grid";
 
           feed.reverse().forEach((item) => {
             const video = document.createElement("video");
             video.controls = true;
             video.src = `${server}/uploads/${item.filename}`;
-            Object.assign(video.style, {
-              maxWidth: "100%",
-              marginTop: "1rem",
-            });
+            video.style.maxWidth = "100%";
+            video.style.marginTop = "1rem";
             wrapper.appendChild(video);
           });
-
-          tag.replaceWith(wrapper);
         } catch {
-          tag.replaceWith(document.createTextNode("Unable to load feed."));
+          wrapper.textContent = "Unable to load feed.";
         }
-      });
+
+        tag.replaceWith(wrapper);
+      },
+    };
+
+    const renderCustomTags = async (
+      container,
+      username,
+      userData,
+      isEditMode = false
+    ) => {
+      const token = store.state.token;
+      const server = store.state.server;
+      const nodes = container.querySelectorAll("*");
+
+      for (const node of nodes) {
+        const tag = node.tagName.toLowerCase();
+
+        if (tag === "pf-feed" && isEditMode) {
+          const wrapper = document.createElement("div");
+          wrapper.className = "pf-feed-grid rendered-tag";
+          wrapper.dataset.tag = "pf-feed";
+          for (const attr of node.attributes) {
+            wrapper.dataset[`attr_${attr.name}`] = attr.value;
+          }
+
+          try {
+            const res = await fetch(`${server}/my_uploads`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const feed = await res.json();
+
+            if (feed.length > 0) {
+              const first = feed[feed.length - 1];
+              const video = document.createElement("video");
+              video.src = `${server}/uploads/${first.filename}`;
+              video.muted = true;
+              video.playsInline = true;
+              video.preload = "metadata";
+              video.style.opacity = "0.3";
+              video.style.borderRadius = "14px";
+              video.style.pointerEvents = "none";
+              video.style.width = "100%";
+              video.style.maxWidth = "600px";
+              video.style.display = "block";
+              video.style.margin = "0 auto";
+
+              const overlay = document.createElement("div");
+              overlay.textContent = "Feed Module";
+              Object.assign(overlay.style, {
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                color: "#fff",
+                background: "rgba(0, 0, 0, 0.5)",
+                padding: "0.5rem 1rem",
+                borderRadius: "8px",
+                fontWeight: "bold",
+                pointerEvents: "none",
+              });
+
+              const containerDiv = document.createElement("div");
+              Object.assign(containerDiv.style, {
+                position: "relative",
+                display: "inline-block",
+                width: "100%",
+                maxWidth: "600px",
+                marginTop: "1rem",
+              });
+
+              containerDiv.appendChild(video);
+              containerDiv.appendChild(overlay);
+              wrapper.appendChild(containerDiv);
+            } else {
+              wrapper.textContent = "No feed to display.";
+            }
+          } catch {
+            wrapper.textContent = "Unable to load feed.";
+          }
+
+          node.replaceWith(wrapper);
+          continue;
+        }
+
+        if (customTagRenderers[tag] && !(tag === "pf-feed" && isEditMode)) {
+          await customTagRenderers[tag](node, userData, server, token);
+        } else if (tag.startsWith("pf-")) {
+          const wrapper = document.createElement("div");
+          wrapper.className = `${tag} rendered-tag`;
+          wrapper.dataset.tag = tag;
+          for (const attr of node.attributes) {
+            wrapper.dataset[`attr_${attr.name}`] = attr.value;
+          }
+          wrapper.textContent = node.textContent.trim();
+          node.replaceWith(wrapper);
+        }
+      }
     };
 
     function enterEditMode(container) {
       const room = container.querySelector(".pf-room");
       if (!room) return;
 
-      [...room.children].forEach((child) => {
-        // Skip already wrapped or pf-banner
-        if (
-          child.classList.contains("edit-block") ||
-          child.classList.contains("pf-banner")
-        )
-          return;
+      Array.from(room.children).forEach((child) => {
+        if (child.classList.contains("edit-block")) return;
 
-        // Handle bio specifically
-        if (child.querySelector("pf-bio")) {
-          const textarea = document.createElement("textarea");
-          textarea.id = "edit-bio";
-          textarea.value = child.querySelector("pf-bio").textContent.trim();
-          const wrapper = document.createElement("div");
-          wrapper.className = "edit-block";
-          wrapper.style.marginBottom = "1rem";
-          wrapper.appendChild(textarea);
-          child.replaceWith(wrapper);
-          return;
-        }
+        const tag = child.dataset?.tag || child.tagName.toLowerCase();
 
-        // All other moveable elements
         const wrapper = document.createElement("div");
         wrapper.className = "edit-block";
-        wrapper.draggable = true;
-        wrapper.style.border = "2px dashed #007aff";
-        wrapper.style.padding = "0.75rem";
-        wrapper.style.marginBottom = "1rem";
-        wrapper.style.cursor = "move";
+        wrapper.dataset.tag = tag;
+        wrapper.setAttribute("draggable", "true");
 
-        // Save the tag for later restore
-        let tagName = "";
-        if (child.classList.contains("pf-avatar")) tagName = "pf-avatar";
-        else if (child.classList.contains("pf-feed-grid")) tagName = "pf-feed";
-        wrapper.dataset.tag = tagName;
+        Object.assign(wrapper.style, {
+          border: "2px dashed #007aff",
+          padding: "0.75rem",
+          marginBottom: "1rem",
+          position: "relative",
+        });
 
-        wrapper.appendChild(child.cloneNode(true));
-        child.replaceWith(wrapper);
-
-        // Enable drag
-        wrapper.ondragstart = (e) => {
-          room.dragged = wrapper;
+        wrapper.addEventListener("dragstart", (e) => {
           e.dataTransfer.setData("text/plain", "");
-        };
-        wrapper.ondragover = (e) => e.preventDefault();
-        wrapper.ondrop = (e) => {
+          wrapper.classList.add("dragging");
+        });
+        wrapper.addEventListener("dragend", () => {
+          wrapper.classList.remove("dragging");
+        });
+        wrapper.addEventListener("dragover", (e) => {
           e.preventDefault();
-          if (room.dragged && room.dragged !== wrapper) {
-            room.insertBefore(room.dragged, wrapper.nextSibling);
+          const dragging = room.querySelector(".dragging");
+          if (dragging && dragging !== wrapper) {
+            room.insertBefore(dragging, wrapper);
           }
+        });
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "editor-ui";
+        deleteBtn.textContent = "✕";
+        Object.assign(deleteBtn.style, {
+          position: "absolute",
+          top: "4px",
+          left: "4px",
+          background: "#ff3b30",
+          color: "white",
+          border: "none",
+          borderRadius: "50%",
+          width: "24px",
+          height: "24px",
+          cursor: "pointer",
+        });
+        deleteBtn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          wrapper.remove();
         };
+        wrapper.appendChild(deleteBtn);
+
+        if (tagsWithTextContent.has(tag)) {
+          const preview = document.createElement("div");
+          preview.textContent = child.textContent.trim();
+          preview.style.marginRight = "2.5rem";
+
+          const textarea = document.createElement("textarea");
+          textarea.value = child.textContent.trim();
+          textarea.style.display = "none";
+          textarea.style.width = "100%";
+          textarea.style.minHeight = "3rem";
+          textarea.style.marginTop = "0.5rem";
+          textarea.className = "editor-ui editable-textarea";
+
+          const editBtn = document.createElement("button");
+          editBtn.className = "editor-ui";
+          editBtn.textContent = "✎";
+          Object.assign(editBtn.style, {
+            position: "absolute",
+            top: "4px",
+            right: "4px",
+            background: "#007aff",
+            color: "white",
+            border: "none",
+            borderRadius: "50%",
+            width: "24px",
+            height: "24px",
+            cursor: "pointer",
+          });
+          editBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const editing = textarea.style.display !== "none";
+            if (editing) preview.textContent = textarea.value.trim();
+            textarea.style.display = editing ? "none" : "block";
+            preview.style.display = editing ? "block" : "none";
+            if (!editing) textarea.focus();
+          };
+
+          wrapper.appendChild(editBtn);
+          wrapper.appendChild(preview);
+          wrapper.appendChild(textarea);
+        } else {
+          wrapper.appendChild(child.cloneNode(true));
+        }
+
+        child.replaceWith(wrapper);
       });
     }
 
-    async function saveEdits(container) {
+    function saveEdits(container) {
       const room = container.querySelector(".pf-room");
       if (!room) return;
 
-      const cleanRoom = document.createElement("div");
-      cleanRoom.className = "pf-room";
-      cleanRoom.style.textAlign = "center";
-      cleanRoom.style.padding = "2rem";
+      const cleanRoom = room.cloneNode(true);
 
-      // Rebuild the content from edit blocks
-      [...room.children].forEach((block) => {
-        if (block.classList.contains("edit-block")) {
-          const tag = block.dataset.tag;
-          if (tag === "pf-name" || tag === "pf-bio") {
-            if (block.querySelector("#edit-bio")) {
-              const bio = document.createElement("pf-bio");
-              bio.textContent = block.querySelector("#edit-bio").value;
-              const p = document.createElement("p");
-              p.appendChild(bio);
-              cleanRoom.appendChild(p);
-              return;
-            }
+      cleanRoom.querySelectorAll(".edit-block").forEach((block) => {
+        const tag = block.dataset.tag;
+        let replacement;
 
-            const el = document.createElement(tag);
-            el.innerHTML = block.innerText.trim();
-            const wrapper = document.createElement(
-              tag === "pf-name" ? "h1" : "p"
-            );
-            wrapper.appendChild(el);
-            cleanRoom.appendChild(wrapper);
-          } else if (tag) {
-            const el = document.createElement(tag);
-            cleanRoom.appendChild(el);
-          } else {
-            cleanRoom.appendChild(block.firstElementChild.cloneNode(true));
-          }
+        if (tag === "pf-bio") {
+          const textarea = block.querySelector("textarea");
+          replacement = document.createElement("pf-bio");
+          replacement.textContent = textarea?.value?.trim() || "";
         } else {
-          cleanRoom.appendChild(block.cloneNode(true));
+          const fragment = document.createDocumentFragment();
+          Array.from(block.childNodes).forEach((child) => {
+            if (!child.classList || !child.classList.contains("editor-ui")) {
+              fragment.appendChild(child);
+            }
+          });
+          block.replaceWith(fragment);
+          return;
         }
+
+        block.replaceWith(replacement);
       });
 
-      // Wrap and combine <style> tags with content
-      const wrapper = document.createElement("div");
-      wrapper.appendChild(cleanRoom);
+      cleanRoom.querySelectorAll(".rendered-tag").forEach((el) => {
+        const tag = el.dataset?.tag;
+        if (!tag) return;
 
-      // Capture original <style> tags and prepend them to the final HTML
-      const styles = [...container.querySelectorAll("style")].map(
+        const newEl = document.createElement(tag);
+        for (const [key, value] of Object.entries(el.dataset)) {
+          if (key.startsWith("attr_")) {
+            newEl.setAttribute(key.replace("attr_", ""), value);
+          }
+        }
+
+        if (tag === "pf-bio") {
+          newEl.textContent = el.textContent?.trim() || "";
+        }
+
+        el.replaceWith(newEl);
+      });
+
+      cleanRoom.querySelectorAll(".editor-ui").forEach((el) => el.remove());
+
+      const styles = Array.from(container.querySelectorAll("style")).map(
         (s) => s.outerHTML
       );
-      const newHtml = styles.join("") + wrapper.innerHTML;
+      const uniqueStyles = [...new Set(styles)].join("");
+
+      const wrapper = document.createElement("div");
+      wrapper.appendChild(cleanRoom);
+      const newHtml = uniqueStyles + wrapper.innerHTML;
 
       const form = new URLSearchParams();
       form.append("html", newHtml);
 
-      await fetch(`${store.state.server}/room/save`, {
+      return fetch(`${store.state.server}/room/save`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${store.state.token}`,
@@ -258,7 +411,7 @@
       } catch {}
 
       currentUserData = userData;
-      await renderCustomTags(container, username, userData);
+      await renderCustomTags(container, username, userData, false);
 
       const editBtn = document.querySelector(".edit-toggle");
       editBtn.addEventListener("click", async (e) => {
@@ -266,13 +419,25 @@
         if (!editMode) {
           editMode = true;
           editBtn.innerText = "Save";
+          await renderCustomTags(container, username, currentUserData, true);
           enterEditMode(container);
         } else {
           await saveEdits(container);
           editMode = false;
           editBtn.innerText = "Edit";
-          container.innerHTML = originalRoomHtml;
-          await renderCustomTags(container, username, currentUserData);
+
+          try {
+            const res = await fetch(`${server}/room/${username}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const newHtml = await res.text();
+            container.innerHTML = newHtml;
+          } catch {
+            container.innerHTML = "<p>Failed to reload room after save.</p>";
+            return;
+          }
+
+          await renderCustomTags(container, username, currentUserData, false);
         }
       });
     });
@@ -292,5 +457,11 @@
     color: #007aff;
     font-weight: bold;
     cursor: pointer;
+  }
+  .edit-block.dragging {
+    opacity: 0.5;
+  }
+  .drop-indicator {
+    transition: all 0.1s ease-in-out;
   }
 </style>
