@@ -2,9 +2,9 @@
   <div class="page">
     <div class="navbar">
       <div class="navbar-inner">
-        <div class="left"><a href="#" class="back link">Back</a></div>
-        <div class="title">Profile</div>
         <div class="right">
+          <a href="#" class="html-toggle">HTML</a>
+          <br />
           <a href="#" class="edit-toggle">Edit</a>
         </div>
       </div>
@@ -16,6 +16,7 @@
       >
         Loading profile...
       </div>
+      <br />
     </div>
   </div>
 </template>
@@ -440,6 +441,74 @@
           await renderCustomTags(container, username, currentUserData, false);
         }
       });
+      const htmlBtn = document.querySelector(".html-toggle");
+      htmlBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+
+        const container = document.getElementById("profile-room-content");
+        const existing = container.querySelector("#raw-html-editor");
+        if (existing) {
+          // Already open, close it
+          existing.remove();
+          const existingBtn = container.querySelector("#apply-html-btn");
+          if (existingBtn) existingBtn.remove();
+          htmlBtn.innerText = "HTML";
+          return;
+        }
+
+        const textarea = document.createElement("textarea");
+        textarea.id = "raw-html-editor";
+        textarea.style.width = "100%";
+        textarea.style.minHeight = "300px";
+        textarea.style.marginTop = "1rem";
+        textarea.style.fontFamily = "monospace";
+        textarea.style.fontSize = "0.85rem";
+        textarea.value = originalRoomHtml;
+
+        const applyBtn = document.createElement("button");
+        applyBtn.id = "apply-html-btn";
+        applyBtn.textContent = "Apply Changes";
+        Object.assign(applyBtn.style, {
+          marginTop: "0.5rem",
+          background: "#007aff",
+          color: "#fff",
+          border: "none",
+          padding: "0.5rem 1rem",
+          borderRadius: "6px",
+          cursor: "pointer",
+        });
+
+        applyBtn.onclick = async () => {
+          const html = textarea.value;
+
+          const form = new URLSearchParams();
+          form.append("html", html);
+
+          try {
+            await fetch(`${store.state.server}/room/save`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${store.state.token}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body: form.toString(),
+            });
+
+            originalRoomHtml = html;
+            container.innerHTML = html;
+            await renderCustomTags(container, username, currentUserData, false);
+            htmlBtn.innerText = "HTML";
+            textarea.remove();
+            applyBtn.remove();
+          } catch {
+            alert("Failed to save HTML.");
+          }
+        };
+
+        container.appendChild(textarea);
+        container.appendChild(applyBtn);
+        htmlBtn.innerText = "Close HTML";
+      });
     });
 
     return $render;
@@ -463,5 +532,11 @@
   }
   .drop-indicator {
     transition: all 0.1s ease-in-out;
+  }
+  .navbar .html-toggle {
+    color: #34c759;
+    margin-left: 1rem;
+    font-weight: bold;
+    cursor: pointer;
   }
 </style>
