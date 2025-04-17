@@ -95,12 +95,28 @@
           const feed = await res.json();
 
           feed.reverse().forEach((item) => {
-            const video = document.createElement("video");
-            video.controls = true;
-            video.src = `${server}/uploads/${item.filename}`;
-            video.style.maxWidth = "100%";
-            video.style.marginTop = "1rem";
-            wrapper.appendChild(video);
+            const ext = item.filename.split(".").pop().toLowerCase();
+            const isImage = /\.(jpe?g|png|gif|webp|bmp)$/i.test(ext);
+            const isVideo = /\.(mp4|webm|mov|avi|mkv)$/i.test(ext);
+
+            let el;
+            if (isVideo) {
+              el = document.createElement("video");
+              el.controls = true;
+              el.src = `${server}/uploads/${item.filename}`;
+              el.style.maxWidth = "100%";
+              el.style.marginTop = "1rem";
+              el.style.borderRadius = "12px";
+              wrapper.appendChild(el);
+            } else if (isImage) {
+              el = document.createElement("img");
+              el.src = `${server}/uploads/${item.filename}`;
+              el.alt = item.caption || "";
+              el.style.maxWidth = "100%";
+              el.style.marginTop = "1rem";
+              el.style.borderRadius = "12px";
+              wrapper.appendChild(el);
+            }
           });
         } catch {
           wrapper.textContent = "Unable to load feed.";
@@ -139,18 +155,33 @@
 
             if (feed.length > 0) {
               const first = feed[feed.length - 1];
-              const video = document.createElement("video");
-              video.src = `${server}/uploads/${first.filename}`;
-              video.muted = true;
-              video.playsInline = true;
-              video.preload = "metadata";
-              video.style.opacity = "0.3";
-              video.style.borderRadius = "14px";
-              video.style.pointerEvents = "none";
-              video.style.width = "100%";
-              video.style.maxWidth = "600px";
-              video.style.display = "block";
-              video.style.margin = "0 auto";
+              const ext = first.filename.split(".").pop().toLowerCase();
+              const isImage = /\.(jpe?g|png|gif|webp|bmp)$/i.test(ext);
+              const isVideo = /\.(mp4|webm|mov|avi|mkv)$/i.test(ext);
+
+              let preview;
+              if (isVideo) {
+                preview = document.createElement("video");
+                preview.muted = true;
+                preview.playsInline = true;
+                preview.preload = "metadata";
+              } else if (isImage) {
+                preview = document.createElement("img");
+              } else {
+                preview = document.createElement("div");
+                preview.textContent = "Unsupported preview";
+              }
+
+              preview.src = `${server}/uploads/${first.filename}`;
+              Object.assign(preview.style, {
+                opacity: "0.3",
+                borderRadius: "14px",
+                pointerEvents: "none",
+                width: "100%",
+                maxWidth: "600px",
+                display: "block",
+                margin: "0 auto",
+              });
 
               const overlay = document.createElement("div");
               overlay.textContent = "Feed Module";
@@ -176,7 +207,7 @@
                 marginTop: "1rem",
               });
 
-              containerDiv.appendChild(video);
+              containerDiv.appendChild(preview);
               containerDiv.appendChild(overlay);
               wrapper.appendChild(containerDiv);
             } else {
@@ -538,5 +569,12 @@
     margin-left: 1rem;
     font-weight: bold;
     cursor: pointer;
+  }
+  .pf-feed-grid img,
+  .pf-feed-grid video {
+    width: 100%;
+    display: block;
+    border-radius: 12px;
+    margin-bottom: 1rem;
   }
 </style>

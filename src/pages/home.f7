@@ -48,25 +48,42 @@
           return;
         }
         mediaGrid.innerHTML = "";
+
+        const isImage = (filename) =>
+          /\.(jpe?g|png|gif|webp|bmp)$/i.test(filename);
+        const isVideo = (filename) =>
+          /\.(mp4|webm|mov|avi|mkv)$/i.test(filename);
+
         feed.forEach((item) => {
           const avatarId = `avatar-${item.username}-${item.filename}`;
           const card = document.createElement("div");
           card.className = "media-card";
+
+          let mediaTag = "";
+          if (isVideo(item.filename)) {
+            mediaTag = `<video src="${server}/uploads/${item.filename}" controls muted></video>`;
+          } else if (isImage(item.filename)) {
+            mediaTag = `<img src="${server}/uploads/${item.filename}" alt="${
+              item.caption || ""
+            }" />`;
+          } else {
+            mediaTag = `<p>Unsupported file type</p>`;
+          }
+
           card.innerHTML = `
-						<div class="media-header">
-							<img class="avatar" id="${avatarId}" src="/default-pfp.svg" alt="${
+			<div class="media-header">
+				<img class="avatar" id="${avatarId}" src="/default-pfp.svg" alt="${
             item.username
           }" />
-							<strong>${item.username}</strong>
-						</div>
-						<video src="${server}/uploads/${item.filename}" controls muted></video>
-						<div class="meta">
-							<p>${item.caption || ""}</p>
-						</div>
-					`;
+				<strong>${item.username}</strong>
+			</div>
+			${mediaTag}
+			<div class="meta">
+				<p>${item.caption || ""}</p>
+			</div>
+		`;
           mediaGrid.appendChild(card);
 
-          // If there's an avatar, fetch and update it.
           if (item.avatar) {
             fetch(`${server}/avatar/${item.avatar}`, {
               headers: { Authorization: `Bearer ${token}` },
@@ -136,5 +153,11 @@
     overflow: hidden;
     max-width: 600px;
     margin: 0 auto;
+  }
+  .media-card img,
+  .media-card video {
+    width: 100%;
+    border-radius: 12px;
+    object-fit: cover;
   }
 </style>

@@ -13,9 +13,15 @@
           </li>
           <li class="item-content item-input">
             <div class="item-inner">
-              <div class="item-title item-label">Video</div>
+              <div class="item-title item-label">Media (Photos & Videos)</div>
               <div class="item-input-wrap">
-                <input type="file" name="file" accept="video/*" required />
+                <input
+                  type="file"
+                  name="files"
+                  accept="image/*,video/*"
+                  multiple
+                  required
+                />
               </div>
             </div>
           </li>
@@ -48,7 +54,11 @@
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         status.innerText = "Uploading...";
-        const formData = new FormData(form);
+        const formData = new FormData();
+        formData.append("caption", form.caption.value);
+        for (const file of form.files.files) {
+          formData.append("files", file);
+        }
 
         try {
           const res = await fetch(`${server}/upload`, {
@@ -58,10 +68,9 @@
             },
             body: formData,
           });
-
           if (!res.ok) throw new Error("Upload failed");
           const data = await res.json();
-          status.innerText = `✅ Uploaded! ID: ${data.id}`;
+          status.innerText = `✅ Uploaded ${data.uploaded} file(s)!`;
           form.reset();
         } catch (err) {
           status.innerText = `❌ Error: ${err.message}`;

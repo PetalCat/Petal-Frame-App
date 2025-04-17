@@ -1,11 +1,113 @@
 <template>
   <div class="page">
-    <div class="page-content">
-      <div class="block text-align-center">
-        <h1>Gallery</h1>
-        <p>Oops! The page you are looking for does not exist.</p>
-        <a href="/" class="button button-fill">Go to Home</a>
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="title">Gallery</div>
       </div>
+    </div>
+    <div class="page-content" id="galleryContainer">
+      <!-- Dynamic content inserted here -->
     </div>
   </div>
 </template>
+
+<script>
+  import store from "../js/store.js";
+
+  export default (props, { $f7, $onMounted }) => {
+    $onMounted(() => {
+      const token = store.state.token;
+      const server = store.state.server;
+      const container = document.getElementById("galleryContainer");
+
+      if (!token) {
+        $f7.views.main.router.navigate("/login");
+        return;
+      }
+      if (!container) return;
+
+      const isImage = (f) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(f);
+      const isVideo = (f) => /\.(mp4|webm|mov|avi|mkv)$/i.test(f);
+
+      fetch(`${server}/gallery`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch gallery");
+          return res.json();
+        })
+        .then((grouped) => {
+          container.innerHTML = "";
+
+          Object.entries(grouped).forEach(([month, items]) => {
+            // Section header
+            const header = document.createElement("div");
+            header.className = "gallery-month-header";
+            header.textContent = month;
+            container.appendChild(header);
+
+            // Media grid
+            const grid = document.createElement("div");
+            grid.className = "gallery-grid";
+            container.appendChild(grid);
+
+            items.forEach((item) => {
+              const src = `${server}/uploads/${item.filename}`;
+              const tile = document.createElement("div");
+              tile.className = "media-tile";
+
+              if (isImage(item.filename)) {
+                tile.innerHTML = `<img src="${src}" alt="${
+                  item.caption || ""
+                }" />`;
+              } else if (isVideo(item.filename)) {
+                tile.innerHTML = `<video src="${src}" muted></video>`;
+              } else {
+                tile.innerHTML = `<div>Unsupported</div>`;
+              }
+
+              grid.appendChild(tile);
+            });
+          });
+        })
+        .catch((err) => {
+          console.error("[Gallery] Load error:", err);
+          container.innerHTML = `<p style="padding: 1rem; color: red;">Failed to load gallery.</p>`;
+        });
+    });
+
+    return $render;
+  };
+</script>
+
+<style>
+  /* 🔵 Header for each month */
+  .gallery-month-header {
+    font-size: 1.25rem;
+    font-weight: bold;
+    margin: 1rem 1rem 0.5rem;
+    color: #d2d2d2;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 0.25rem;
+  }
+
+  /* 🟢 Grid layout */
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+    padding: 0 1rem 1rem;
+  }
+
+  /* 🟣 Tiles */
+  .media-tile img,
+  .media-tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    aspect-ratio: 1 / 1;
+    background: #f0f0f0;
+  }
+</style>
