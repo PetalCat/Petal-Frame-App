@@ -11,12 +11,18 @@ export default async () => {
     plugins: [
       framework7({ emitCss: false }),
       VitePWA({
-        registerType: "autoUpdate",
+        registerType: "autoUpdate", // ✅ Check for updates automatically
+        injectRegister: "auto", // ✅ Ensures it's included in build
         includeAssets: [
           "favicon.png",
           "icons/icon-192x192.png",
           "icons/icon-512x512.png",
         ],
+        workbox: {
+          skipWaiting: true, // ✅ Activate updated SW immediately
+          clientsClaim: true, // ✅ Refresh all tabs using it
+          cleanupOutdatedCaches: true, // ✅ Clear old versions
+        },
         manifest: {
           name: "Petal Frame",
           short_name: "PetalFrame",
@@ -40,7 +46,7 @@ export default async () => {
       }),
     ],
     root: SRC_DIR,
-    base: "",
+    base: "", // If you're deploying to a subpath, update this
     publicDir: PUBLIC_DIR,
     build: {
       outDir: BUILD_DIR,
@@ -55,7 +61,6 @@ export default async () => {
         "@": SRC_DIR,
       },
     },
-    css: {},
     server: {
       host: true,
     },

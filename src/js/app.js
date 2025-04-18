@@ -7,6 +7,7 @@ import "framework7-icons";
 import App from "../app.f7";
 import store from "./store.js";
 import "../css/app.css";
+import { registerSW } from "virtual:pwa-register";
 
 var app = new Framework7({
   name: "Petal Frame", // App name
@@ -28,6 +29,14 @@ var app = new Framework7({
       } else {
         console.log("Running on web");
       }
+
+      registerSW({
+        onNeedRefresh() {
+          if (confirm("🆕 New version available. Reload now?")) {
+            window.location.reload();
+          }
+        },
+      });
     },
   },
 });
