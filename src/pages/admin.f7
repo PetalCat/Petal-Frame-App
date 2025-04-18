@@ -7,6 +7,12 @@
           Toggle Signup Lock
         </button>
       </div>
+      <div class="block">
+        <h3>Utilities</h3>
+        <button class="button button-outline" id="runBackfill">
+          Run Preview Backfill
+        </button>
+      </div>
 
       <div class="block">
         <h3>User List</h3>
@@ -32,86 +38,105 @@
   }
 
   export default (props, { $onMounted }) => {
-    const server = localStorage.getItem("server") || "http://127.0.0.1:8000";
+    $onMounted(() => {
+      const server = localStorage.getItem("server") || "http://127.0.0.1:8000";
 
-    async function fetchUsers() {
-      const token = localStorage.getItem("token");
-      const list = document.getElementById("userList");
-      list.innerHTML = "Loading...";
+      async function fetchUsers() {
+        const token = localStorage.getItem("token");
+        const list = document.getElementById("userList");
+        list.innerHTML = "Loading...";
 
-      const res = await fetch(`${server}/admin/list_users`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const users = await res.json();
-      list.innerHTML = "";
+        const res = await fetch(`${server}/admin/list_users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const users = await res.json();
+        list.innerHTML = "";
 
-      users.forEach((u) => {
-        const item = document.createElement("li");
-        const row = document.createElement("div");
-        row.className = "user-info";
+        users.forEach((u) => {
+          const item = document.createElement("li");
+          const row = document.createElement("div");
+          row.className = "user-info";
 
-        const avatar = document.createElement("img");
-        avatar.className = "user-avatar";
+          const avatar = document.createElement("img");
+          avatar.className = "user-avatar";
 
-        if (u.avatar) {
-          loadProtectedImage(`${server}/avatar/${u.avatar}`, token, avatar);
-        } else {
-          avatar.src = "/img/default-pfp.png";
-        }
+          if (u.avatar) {
+            loadProtectedImage(`${server}/avatar/${u.avatar}`, token, avatar);
+          } else {
+            avatar.src = "/img/default-pfp.png";
+          }
 
-        const text = document.createElement("span");
-        text.innerText = `${u.username} ${u.is_admin ? "(admin)" : ""}`;
-        row.appendChild(avatar);
-        row.appendChild(text);
+          const text = document.createElement("span");
+          text.innerText = `${u.username} ${u.is_admin ? "(admin)" : ""}`;
+          row.appendChild(avatar);
+          row.appendChild(text);
 
-        if (!u.is_admin && u.username !== localStorage.getItem("username")) {
-          const delBtn = document.createElement("button");
-          delBtn.className = "delete-btn";
-          delBtn.innerHTML = `<i class="icon f7-icons delete-icon">trash</i>`;
-          delBtn.onclick = async () => {
-            const form = new FormData();
-            form.append("target", u.username);
-            await fetch(`${server}/admin/delete_user`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-              body: form,
-            });
-            fetchUsers();
-          };
-          row.appendChild(delBtn); // ✅ aligned inside row
-        }
+          if (!u.is_admin && u.username !== localStorage.getItem("username")) {
+            const delBtn = document.createElement("button");
+            delBtn.className = "delete-btn";
+            delBtn.innerHTML = `<i class="icon f7-icons delete-icon">trash</i>`;
+            delBtn.onclick = async () => {
+              const form = new FormData();
+              form.append("target", u.username);
+              await fetch(`${server}/admin/delete_user`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: form,
+              });
+              fetchUsers();
+            };
+            row.appendChild(delBtn);
+          }
 
-        item.appendChild(row); // ✅ only append the row
-        list.appendChild(item);
-      });
-    }
+          item.appendChild(row);
+          list.appendChild(item);
+        });
+      }
 
-    async function checkSignupLock() {
-      const statusEl = document.getElementById("signupStatus");
-      const toggleBtn = document.getElementById("toggleSignup");
+      async function checkSignupLock() {
+        const statusEl = document.getElementById("signupStatus");
+        const toggleBtn = document.getElementById("toggleSignup");
 
-      const res = await fetch(`${server}/admin/signup_status`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
-      const data = await res.json();
-      let locked = data.locked;
-
-      statusEl.innerText = locked ? "🔒 Locked" : "✅ Open";
-
-      toggleBtn.onclick = async () => {
-        const endpoint = locked ? "unlock_signup" : "lock_signup";
-        await fetch(`${server}/admin/${endpoint}`, {
-          method: "POST",
+        const res = await fetch(`${server}/admin/signup_status`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
-        locked = !locked;
-        statusEl.innerText = locked ? "🔒 Locked" : "✅ Open";
-      };
-    }
+        const data = await res.json();
+        let locked = data.locked;
 
-    $onMounted(() => {
+        statusEl.innerText = locked ? "🔒 Locked" : "✅ Open";
+
+        toggleBtn.onclick = async () => {
+          const endpoint = locked ? "unlock_signup" : "lock_signup";
+          await fetch(`${server}/admin/${endpoint}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          });
+          locked = !locked;
+          statusEl.innerText = locked ? "🔒 Locked" : "✅ Open";
+        };
+      }
+
+      async function attachBackfillButton() {
+        const backfillBtn = document.getElementById("runBackfill");
+        if (!backfillBtn) return;
+
+        backfillBtn.onclick = async () => {
+          const res = await fetch(`${server}/admin/backfill_previews`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          });
+          const result = await res.json();
+          $f7.dialog.alert(result.status || "Backfill complete");
+        };
+      }
+
       fetchUsers();
       checkSignupLock();
+      attachBackfillButton();
     });
 
     return $render;

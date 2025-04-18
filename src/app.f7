@@ -15,6 +15,14 @@
       <div class="tab-link" data-page="upload">
         <i class="icon f7-icons">arrow_up_circle</i><span>Upload</span>
       </div>
+      <div
+        class="tab-link"
+        data-page="admin"
+        id="adminTab"
+        style="display: none"
+      >
+        <i class="icon f7-icons">gear</i><span>Admin</span>
+      </div>
       <div class="tab-link" data-page="profile">
         <img id="bottomAvatar" src="/default-pfp.svg" alt="Profile" />
         <span>Profile</span>
@@ -76,6 +84,11 @@
           if (!res.ok) throw new Error("Token invalid");
           const data = await res.json();
           store.dispatch("setAuth", { token, username: data.username });
+
+          // 🔐 Show Admin tab if user is admin
+          if (data.is_admin) {
+            document.getElementById("adminTab").style.display = "flex";
+          }
 
           const avatarUrl = data.avatar
             ? `${server}/avatar/${data.avatar}`

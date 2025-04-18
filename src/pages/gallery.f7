@@ -13,13 +13,13 @@
 
 <script>
   import store from "../js/store.js";
+  import localforage from "localforage";
 
   export default (props, { $f7, $onMounted }) => {
-    $onMounted(() => {
+    $onMounted(async () => {
       const token = store.state.token;
       const server = store.state.server;
       const container = document.getElementById("galleryContainer");
-
       if (!token) {
         $f7.views.main.router.navigate("/login");
         return;
@@ -29,51 +29,179 @@
       const isImage = (f) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(f);
       const isVideo = (f) => /\.(mp4|webm|mov|avi|mkv)$/i.test(f);
 
-      fetch(`${server}/gallery`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed to fetch gallery");
-          return res.json();
-        })
-        .then((grouped) => {
-          container.innerHTML = "";
+      let allItems = [];
 
-          Object.entries(grouped).forEach(([month, items]) => {
-            // Section header
-            const header = document.createElement("div");
-            header.className = "gallery-month-header";
-            header.textContent = month;
-            container.appendChild(header);
+      const cached = await localforage.getItem("gallery");
+      if (cached) renderGallery(cached);
 
-            // Media grid
-            const grid = document.createElement("div");
-            grid.className = "gallery-grid";
-            container.appendChild(grid);
+      try {
+        const res = await fetch(`${server}/gallery`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Failed to fetch gallery");
+        const data = await res.json();
+        await localforage.setItem("gallery", data);
+        renderGallery(data);
+      } catch (err) {
+        console.error("[Gallery] Load error:", err);
+        container.innerHTML = `<p style="padding: 1rem; color: red;">Failed to load gallery.</p>`;
+      }
 
-            items.forEach((item) => {
-              const src = `${server}/uploads/${item.filename}`;
-              const tile = document.createElement("div");
-              tile.className = "media-tile";
+      function renderGallery(grouped) {
+        container.innerHTML = "";
+        allItems = [];
 
-              if (isImage(item.filename)) {
-                tile.innerHTML = `<img src="${src}" alt="${
-                  item.caption || ""
-                }" />`;
-              } else if (isVideo(item.filename)) {
-                tile.innerHTML = `<video src="${src}" muted></video>`;
-              } else {
-                tile.innerHTML = `<div>Unsupported</div>`;
+        Object.entries(grouped).forEach(([month, items]) => {
+          const header = document.createElement("div");
+          header.className = "gallery-month-header";
+          header.textContent = month;
+          container.appendChild(header);
+
+          const grid = document.createElement("div");
+          grid.className = "gallery-grid";
+          container.appendChild(grid);
+
+          items.forEach((item) => {
+            const fullSrc = `${server}/uploads/${item.filename}`;
+            const baseName = item.filename.split(".")[0];
+            const isImg = isImage(item.filename);
+            const isVid = isVideo(item.filename);
+            const previewSrc = isVid
+              ? `${server}/uploads/preview_${baseName}.jpg`
+              : `${server}/uploads/preview_${item.filename}`;
+
+            const index = allItems.length;
+            allItems.push({ full: fullSrc, type: isImg ? "image" : "video" });
+
+            const tile = document.createElement("div");
+            tile.className = "media-tile";
+
+            tile.innerHTML = isImg
+              ? `<div class="media-thumb" data-index="${index}">
+									<img src="${previewSrc}" alt="${item.caption || ""}" />
+								</div>`
+              : `<div class="media-thumb" data-index="${index}">
+									<img src="${previewSrc}" alt="Video preview" />
+									<div class="media-icon"><i class="f7-icons">play_circle_fill</i></div>
+								</div>`;
+
+            const thumb = tile.querySelector(".media-thumb");
+            thumb.dataset.index = index;
+            thumb.addEventListener("click", () => showPreview(index));
+
+            grid.appendChild(tile);
+          });
+        });
+      }
+
+      function showPreview(startIndex) {
+        let currentIndex = startIndex;
+
+        const overlay = document.createElement("div");
+        overlay.className = "fullscreen-preview";
+        overlay.innerHTML = `
+					<div class="carousel-track" id="carouselTrack"></div>`;
+
+        document.body.appendChild(overlay);
+
+        const track = overlay.querySelector("#carouselTrack");
+
+        const renderMedia = async (el, index) => {
+          el.innerHTML = "";
+          if (index < 0 || index >= allItems.length) return;
+
+          const { full, type } = allItems[index];
+          const filename = full.split("/").pop();
+          const key = `media:${filename}`;
+          let src = full;
+          const cached = await localforage.getItem(key);
+          if (cached) src = URL.createObjectURL(cached);
+
+          return new Promise((resolve) => {
+            if (type === "video") {
+              const vid = document.createElement("video");
+              vid.src = src;
+              vid.controls = true;
+              vid.autoplay = true;
+              vid.playsInline = true;
+              Object.assign(vid.style, {
+                maxWidth: "90%",
+                maxHeight: "90%",
+                borderRadius: "12px",
+                boxShadow: "0 0 24px rgba(0,0,0,0.5)",
+              });
+              vid.addEventListener("loadeddata", resolve);
+              el.appendChild(vid);
+            } else {
+              const img = new Image();
+              img.src = src;
+              img.draggable = false;
+              Object.assign(img.style, {
+                maxWidth: "90%",
+                maxHeight: "90%",
+                borderRadius: "12px",
+                boxShadow: "0 0 24px rgba(0,0,0,0.5)",
+              });
+              img.onload = resolve;
+              el.appendChild(img);
+            }
+          });
+        };
+
+        const updateSlides = async () => {
+          track.innerHTML = "";
+          for (let i = -2; i <= 2; i++) {
+            const slide = document.createElement("div");
+            slide.className = "carousel-slide";
+            await renderMedia(slide, currentIndex + i);
+            track.appendChild(slide);
+          }
+          track.scrollLeft = 2 * track.clientWidth;
+        };
+
+        updateSlides();
+
+        let isScrolling;
+        track.addEventListener("scroll", () => {
+          clearTimeout(isScrolling);
+          isScrolling = setTimeout(async () => {
+            const slideWidth = track.clientWidth;
+            const scrollX = track.scrollLeft;
+            const offset = Math.round(scrollX / slideWidth) - 2;
+
+            if (offset !== 0) {
+              const newIndex = currentIndex + offset;
+              if (newIndex < 0 || newIndex >= allItems.length) {
+                track.scrollTo({ left: 2 * slideWidth, behavior: "smooth" });
+                return;
               }
 
-              grid.appendChild(tile);
-            });
-          });
-        })
-        .catch((err) => {
-          console.error("[Gallery] Load error:", err);
-          container.innerHTML = `<p style="padding: 1rem; color: red;">Failed to load gallery.</p>`;
+              currentIndex = newIndex;
+
+              // Build slides offscreen
+              const temp = document.createElement("div");
+              for (let i = -2; i <= 2; i++) {
+                const slide = document.createElement("div");
+                slide.className = "carousel-slide";
+                await renderMedia(slide, currentIndex + i);
+                temp.appendChild(slide);
+              }
+
+              // Swap slides in one step
+              while (track.firstChild) track.removeChild(track.firstChild);
+              while (temp.firstChild) track.appendChild(temp.firstChild);
+
+              track.scrollLeft = 2 * slideWidth;
+            } else {
+              track.scrollTo({ left: 2 * slideWidth, behavior: "smooth" });
+            }
+          }, 40);
         });
+
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) overlay.remove();
+        });
+      }
     });
 
     return $render;
@@ -81,7 +209,6 @@
 </script>
 
 <style>
-  /* 🔵 Header for each month */
   .gallery-month-header {
     font-size: 1.25rem;
     font-weight: bold;
@@ -91,17 +218,14 @@
     padding-bottom: 0.25rem;
   }
 
-  /* 🟢 Grid layout */
   .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
     gap: 8px;
     padding: 0 1rem 1rem;
   }
 
-  /* 🟣 Tiles */
-  .media-tile img,
-  .media-tile video {
+  .media-tile img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -109,5 +233,51 @@
     cursor: pointer;
     aspect-ratio: 1 / 1;
     background: #f0f0f0;
+  }
+
+  .media-thumb {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .media-icon {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    padding: 4px;
+    color: white;
+    font-size: 16px;
+    pointer-events: none;
+  }
+
+  .fullscreen-preview {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .carousel-track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .carousel-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 </style>
