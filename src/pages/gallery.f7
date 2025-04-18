@@ -49,11 +49,13 @@
       }
 
       function renderGallery(grouped) {
-        container.innerHTML = "";
+        console.log("[Gallery] Rendering gallery...");
 
+        container.innerHTML = "";
         let preloadSources = [];
 
         Object.entries(grouped).forEach(([month, items]) => {
+          console.log(`[Gallery] Month: ${month}`);
           const header = document.createElement("div");
           header.className = "gallery-month-header";
           header.textContent = month;
@@ -63,7 +65,7 @@
           grid.className = "gallery-grid";
           container.appendChild(grid);
 
-          items.forEach((item) => {
+          items.forEach((item, index) => {
             const fullSrc = `${server}/uploads/${item.filename}`;
             const baseName = item.filename.split(".")[0];
             const isImg = isImage(item.filename);
@@ -72,14 +74,34 @@
               ? `${server}/uploads/preview_${baseName}.jpg`
               : `${server}/uploads/preview_${item.filename}`;
 
+            console.log(`[Gallery] Item ${index}:`, {
+              filename: item.filename,
+              isImage: isImg,
+              isVideo: isVid,
+              fullSrc,
+              previewSrc,
+            });
+
             const anchor = document.createElement("a");
             anchor.href = fullSrc;
+            anchor.classList.add("external");
             anchor.setAttribute("data-fslightbox", "gallery");
 
             const img = document.createElement("img");
             img.src = previewSrc;
             img.alt = item.caption || "";
             img.draggable = false;
+
+            img.onerror = () => {
+              console.error(
+                "[Gallery] Failed to load preview image:",
+                previewSrc
+              );
+            };
+
+            img.onload = () => {
+              console.log("[Gallery] Loaded preview image:", previewSrc);
+            };
 
             const tile = document.createElement("div");
             tile.className = "media-tile";
@@ -95,15 +117,22 @@
             tile.appendChild(anchor);
             grid.appendChild(tile);
 
-            preloadSources.push(fullSrc);
+            preloadSources.push(
+              isVid ? { source: fullSrc, type: "video" } : fullSrc
+            );
           });
         });
 
         window.fslightboxInstances = window.fslightboxInstances || {};
-        window.fslightboxInstances.gallery = { sources: preloadSources };
+        window.fslightboxInstances.gallery = {
+          sources: preloadSources,
+        };
 
         if (typeof refreshFsLightbox === "function") {
+          console.log("[Gallery] Calling refreshFsLightbox()");
           refreshFsLightbox();
+        } else {
+          console.warn("[Gallery] FsLightbox not ready yet.");
         }
       }
     });
@@ -124,7 +153,7 @@
 
   .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
     gap: 8px;
     padding: 0 1rem 1rem;
   }
