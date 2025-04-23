@@ -5,9 +5,7 @@
         <div class="title">Gallery</div>
       </div>
     </div>
-    <div class="page-content" id="galleryContainer">
-      <!-- Dynamic content inserted here -->
-    </div>
+    <div class="page-content" id="galleryContainer"></div>
   </div>
 </template>
 
@@ -30,8 +28,6 @@
       const isImage = (f) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(f);
       const isVideo = (f) => /\.(mp4|webm|mov|avi|mkv)$/i.test(f);
 
-      let allItems = [];
-
       const cached = await localforage.getItem("gallery");
       if (cached) renderGallery(cached);
 
@@ -49,13 +45,123 @@
       }
 
       function renderGallery(grouped) {
-        console.log("[Gallery] Rendering gallery...");
+        let selectionMode = false;
+        let selectedItems = new Set();
+        let dragStartIndex = null;
+        let dragEndIndex = null;
+        let isDragging = false;
 
         container.innerHTML = "";
-        let preloadSources = [];
 
-        Object.entries(grouped).forEach(([month, items]) => {
-          console.log(`[Gallery] Month: ${month}`);
+        const topbar = document.createElement("div");
+        topbar.className = "gallery-topbar";
+        topbar.style.display = "none";
+        topbar.innerHTML = `
+					<span class="gallery-close">✕</span>
+					<span class="gallery-count">0 selected</span>
+					<div class="gallery-actions">
+						<i class="f7-icons action-icon" title="Edit Date" id="editDateBtn">calendar</i>
+						<i class="f7-icons action-icon" title="Add to Album">folder_badge_plus</i>
+						<i class="f7-icons action-icon" title="Trash">trash</i>
+					</div>
+				`;
+        container.before(topbar);
+        topbar.querySelector(".gallery-close").onclick = () => clearSelection();
+        topbar.querySelector("#editDateBtn").onclick = () => {
+          const dialog = document.createElement("div");
+          dialog.className = "edit-dialog";
+          dialog.innerHTML = `
+						<div class="dialog-overlay"></div>
+						<div class="dialog-box">
+							<h3>Edit Date</h3>
+							<label>Date: <input type="date" id="edit-date-input" required></label>
+							<label>Time: <input type="time" id="edit-time-input" required></label>
+							<div class="dialog-buttons">
+								<button id="cancel-edit">Cancel</button>
+								<button id="confirm-edit">Save</button>
+							</div>
+						</div>
+					`;
+          document.body.appendChild(dialog);
+
+          dialog.querySelector("#cancel-edit").onclick = () => dialog.remove();
+
+          dialog.querySelector("#confirm-edit").onclick = async () => {
+            const date = dialog.querySelector("#edit-date-input").value;
+            const time = dialog.querySelector("#edit-time-input").value;
+            if (!date || !time)
+              return alert("Please enter both date and time.");
+
+            const datetime = new Date(`${date}T${time}`);
+            const timestamp = Math.floor(datetime.getTime() / 1000);
+
+            for (const filename of selectedItems) {
+              await fetch(`${server}/edit-date`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  filename,
+                  new_timestamp: timestamp,
+                }),
+              });
+            }
+            dialog.remove();
+            $f7.views.main.router.refreshPage();
+          };
+        };
+
+        function updateUIState() {
+          topbar.style.display = selectionMode ? "flex" : "none";
+          topbar.querySelector(
+            ".gallery-count"
+          ).textContent = `${selectedItems.size} selected`;
+          document.body.classList.toggle("selection-mode", selectionMode);
+        }
+
+        function clearSelection() {
+          selectionMode = false;
+          selectedItems.clear();
+          document
+            .querySelectorAll(".media-tile.selected")
+            .forEach((t) => t.classList.remove("selected"));
+          updateUIState();
+        }
+
+        let allItems = Object.entries(grouped)
+          .flatMap(([month, items]) =>
+            items.map((item) => ({
+              ...item,
+              month,
+              sort_time: item.date_taken || item.timestamp,
+            }))
+          )
+          .sort((a, b) => b.sort_time - a.sort_time);
+
+        const sortedByMonth = {};
+        allItems.forEach((item) => {
+          if (!sortedByMonth[item.month]) sortedByMonth[item.month] = [];
+          sortedByMonth[item.month].push(item);
+        });
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                const img = entry.target;
+                img.src = img.dataset.src;
+                observer.unobserve(img);
+              }
+            });
+          },
+          { rootMargin: "100px", threshold: 0.1 }
+        );
+
+        const tileElements = [];
+
+        for (const [month, items] of Object.entries(sortedByMonth)) {
           const header = document.createElement("div");
           header.className = "gallery-month-header";
           header.textContent = month;
@@ -65,7 +171,7 @@
           grid.className = "gallery-grid";
           container.appendChild(grid);
 
-          items.forEach((item, index) => {
+          items.forEach((item) => {
             const fullSrc = `${server}/uploads/${item.filename}`;
             const baseName = item.filename.split(".")[0];
             const isImg = isImage(item.filename);
@@ -74,37 +180,105 @@
               ? `${server}/uploads/preview_${baseName}.jpg`
               : `${server}/uploads/preview_${item.filename}`;
 
-            console.log(`[Gallery] Item ${index}:`, {
-              filename: item.filename,
-              isImage: isImg,
-              isVideo: isVid,
-              fullSrc,
-              previewSrc,
-            });
-
             const anchor = document.createElement("a");
             anchor.href = fullSrc;
             anchor.classList.add("external");
             anchor.setAttribute("data-fslightbox", "gallery");
+            anchor.draggable = false;
+            anchor.addEventListener("click", (e) => {
+              if (selectionMode) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+              }
+            });
 
             const img = document.createElement("img");
-            img.src = previewSrc;
+            img.dataset.src = previewSrc;
             img.alt = item.caption || "";
             img.draggable = false;
-
-            img.onerror = () => {
-              console.error(
-                "[Gallery] Failed to load preview image:",
-                previewSrc
-              );
-            };
-
-            img.onload = () => {
-              console.log("[Gallery] Loaded preview image:", previewSrc);
-            };
+            img.onerror = () => console.error("Failed preview:", previewSrc);
+            observer.observe(img);
 
             const tile = document.createElement("div");
             tile.className = "media-tile";
+            tile.dataset.index = tileElements.length;
+            tile.dataset.filename = item.filename;
+            tileElements.push(tile);
+
+            const checkCircle = document.createElement("div");
+            checkCircle.className = "check-circle";
+            checkCircle.innerHTML = `<i class="f7-icons">checkmark_circle_fill</i>`;
+            tile.appendChild(checkCircle);
+
+            let holdTimer = null;
+            let longPressed = false;
+
+            tile.addEventListener("pointerdown", (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              longPressed = false;
+              isDragging = false;
+
+              holdTimer = setTimeout(() => {
+                longPressed = true;
+                if (!selectionMode) {
+                  selectionMode = true;
+                  updateUIState();
+                }
+                isDragging = true;
+                dragStartIndex = Number(tile.dataset.index);
+                dragEndIndex = dragStartIndex;
+
+                const filename = item.filename;
+                if (!selectedItems.has(filename)) {
+                  selectedItems.add(filename);
+                  tile.classList.add("selected");
+                }
+                updateUIState();
+              }, 500);
+            });
+
+            tile.addEventListener("pointerenter", () => {
+              if (!isDragging || dragStartIndex === null) return;
+              dragEndIndex = Number(tile.dataset.index);
+              const [min, max] = [dragStartIndex, dragEndIndex].sort(
+                (a, b) => a - b
+              );
+
+              tileElements.forEach((el, i) => {
+                const fname = el.dataset.filename;
+                if (i >= min && i <= max && !selectedItems.has(fname)) {
+                  selectedItems.add(fname);
+                  el.classList.add("selected");
+                }
+              });
+              updateUIState();
+            });
+
+            tile.addEventListener("pointerup", () => {
+              clearTimeout(holdTimer);
+
+              if (!longPressed && !isDragging && selectionMode) {
+                const isSelected = selectedItems.has(item.filename);
+                if (isSelected) {
+                  selectedItems.delete(item.filename);
+                  tile.classList.remove("selected");
+                } else {
+                  selectedItems.add(item.filename);
+                  tile.classList.add("selected");
+                }
+                if (selectedItems.size === 0) selectionMode = false;
+                updateUIState();
+              }
+
+              isDragging = false;
+              dragStartIndex = null;
+              dragEndIndex = null;
+            });
+
+            tile.addEventListener("pointerleave", () =>
+              clearTimeout(holdTimer)
+            );
 
             if (isVid) {
               const icon = document.createElement("div");
@@ -116,32 +290,70 @@
             anchor.appendChild(img);
             tile.appendChild(anchor);
             grid.appendChild(tile);
-
-            preloadSources.push(
-              isVid ? { source: fullSrc, type: "video" } : fullSrc
-            );
           });
+        }
+
+        window.addEventListener("pointerup", () => {
+          isDragging = false;
+          dragStartIndex = null;
+          dragEndIndex = null;
         });
 
-        window.fslightboxInstances = window.fslightboxInstances || {};
-        window.fslightboxInstances.gallery = {
-          sources: preloadSources,
-        };
-
         if (typeof refreshFsLightbox === "function") {
-          console.log("[Gallery] Calling refreshFsLightbox()");
           refreshFsLightbox();
         } else {
           console.warn("[Gallery] FsLightbox not ready yet.");
         }
       }
     });
-
     return $render;
   };
 </script>
 
 <style>
+  .page-content {
+    padding-bottom: 80px;
+  }
+
+  .gallery-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: #111;
+    color: #fff;
+    font-size: 1rem;
+    z-index: 1000;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  }
+
+  .gallery-topbar .gallery-close {
+    font-size: 1.2rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .gallery-topbar .gallery-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .gallery-topbar .action-icon {
+    cursor: pointer;
+    font-size: 1.2rem;
+    opacity: 0.85;
+    transition: opacity 0.2s;
+  }
+
+  .gallery-topbar .action-icon:hover {
+    opacity: 1;
+  }
+
   .gallery-month-header {
     font-size: 1.25rem;
     font-weight: bold;
@@ -153,9 +365,15 @@
 
   .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
     gap: 8px;
     padding: 0 1rem 1rem;
+  }
+
+  .media-tile {
+    position: relative;
+    user-select: none;
+    -webkit-user-drag: none;
   }
 
   .media-tile img {
@@ -178,5 +396,50 @@
     color: white;
     font-size: 16px;
     pointer-events: none;
+  }
+
+  .check-circle {
+    display: none;
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid white;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 10;
+  }
+
+  .media-tile.selected .check-circle,
+  .selection-mode .media-tile .check-circle {
+    display: block;
+  }
+
+  .media-tile.selected {
+    border: 2px solid #007aff;
+    box-shadow: 0 0 4px #007aff;
+  }
+
+  .check-circle i {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+    width: 100%;
+    height: 100%;
+    font-size: 20px;
+    color: #007aff;
+    display: none;
+  }
+
+  .media-tile.selected .check-circle i {
+    display: block;
+  }
+
+  #galleryContainer {
+    user-select: none;
   }
 </style>

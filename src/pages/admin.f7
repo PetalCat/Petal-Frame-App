@@ -12,6 +12,9 @@
         <button class="button button-outline" id="runBackfill">
           Run Preview Backfill
         </button>
+        <button class="button button-outline" id="runDateBackfill">
+          Run Date Taken Backfill
+        </button>
       </div>
 
       <div class="block">
@@ -37,7 +40,7 @@
     }
   }
 
-  export default (props, { $onMounted }) => {
+  export default (props, { $f7, $onMounted }) => {
     $onMounted(() => {
       const server = localStorage.getItem("server") || "http://127.0.0.1:8000";
 
@@ -118,25 +121,39 @@
         };
       }
 
-      async function attachBackfillButton() {
-        const backfillBtn = document.getElementById("runBackfill");
-        if (!backfillBtn) return;
+      async function attachBackfillButtons() {
+        const token = localStorage.getItem("token");
 
-        backfillBtn.onclick = async () => {
-          const res = await fetch(`${server}/admin/backfill_previews`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          });
-          const result = await res.json();
-          $f7.dialog.alert(result.status || "Backfill complete");
-        };
+        const backfillBtn = document.getElementById("runBackfill");
+        if (backfillBtn) {
+          backfillBtn.onclick = async () => {
+            const res = await fetch(`${server}/admin/backfill_previews`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const result = await res.json();
+            $f7.dialog.alert(result.status || "Backfill complete");
+          };
+        }
+
+        const dateBackfillBtn = document.getElementById("runDateBackfill");
+        if (dateBackfillBtn) {
+          dateBackfillBtn.onclick = async () => {
+            const res = await fetch(`${server}/admin/backfill_dates`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+              },
+            });
+            const result = await res.json();
+            $f7.dialog.alert(result.status || "Date backfill complete");
+          };
+        }
       }
 
       fetchUsers();
       checkSignupLock();
-      attachBackfillButton();
+      attachBackfillButtons();
     });
 
     return $render;
