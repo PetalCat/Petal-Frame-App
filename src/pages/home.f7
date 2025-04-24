@@ -6,132 +6,144 @@
       <div class="media-gallery block">
         <div id="mediaGrid" class="media-grid"></div>
       </div>
+      <div id="scrollSentinel" style="height: 1px"></div>
     </div>
   </div>
 </template>
 
 <script>
   import store from "../js/store.js";
+  import localforage from "localforage";
 
   export default (props, { $f7, $onMounted }) => {
-    $onMounted(() => {
+    let page = 0;
+    const PAGE_SIZE = 20;
+    let loading = false;
+    let hasMore = true;
+    let observer = null;
+
+    const isImage = (filename) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(filename);
+    const isVideo = (filename) => /\.(mp4|webm|mov|avi|mkv)$/i.test(filename);
+
+    const loadFeed = async () => {
+      if (loading || !hasMore) return;
+      loading = true;
+
       const token = store.state.token;
       const server = store.state.server;
+      const container = document.getElementById("mediaGrid");
 
-      // If no token, redirect to login.
-      if (!token) {
-        $f7.views.main.router.navigate("/login");
+      const res = await fetch(
+        `${server}/feed?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!res.ok) {
+        console.error("Feed fetch failed");
+        loading = false;
         return;
       }
 
-      const status = document.getElementById("statusBlock");
-      const mediaGrid = document.getElementById("mediaGrid");
+      const chunk = await res.json();
+      console.log("Loaded chunk:", chunk);
+      if (chunk.length < PAGE_SIZE) hasMore = false;
+      page++;
 
-      // Use cached feed if available or default to empty array.
-      const cachedFeed = Array.isArray(store.state.feed)
-        ? store.state.feed
-        : [];
-      if (!Array.isArray(store.state.feed)) {
-        console.warn(
-          "Feed is undefined in the store; initializing to an empty array."
-        );
-        // You may need to ensure that your store's initial state already sets feed to []
-        // or update it here.
-        store.dispatch("setFeed", []);
+      const fragment = document.createDocumentFragment();
+
+      for (const item of chunk) {
+        const avatarId = `avatar-${item.username}-${item.filename}`;
+        const mediaId = `media-${item.filename}`;
+        const card = document.createElement("div");
+        card.className = "media-card";
+
+        const mediaTag = isVideo(item.filename)
+          ? `<video id="${mediaId}" muted></video>`
+          : `<img id="${mediaId}" alt="${item.caption || ""}" />`;
+
+        card.innerHTML = `
+					<div class="media-header">
+						<img class="avatar" id="${avatarId}" src="/default-pfp.svg" alt="${
+          item.username
+        }" />
+						<strong>${item.username}</strong>
+					</div>
+					${mediaTag}
+					<div class="meta">
+						<p>${item.caption || ""}</p>
+					</div>
+				`;
+
+        fragment.appendChild(card);
       }
 
-      // Function to render the media feed.
-      const renderFeed = (feed) => {
-        // Ensure feed is an array.
-        if (!Array.isArray(feed)) {
-          console.error("renderFeed: Expected an array but got:", feed);
-          return;
+      container.appendChild(fragment);
+
+      chunk.forEach((item) => {
+        const mediaId = `media-${item.filename}`;
+        const media = document.getElementById(mediaId);
+        const previewKey = `preview-${item.filename}`;
+        const fullURL = `${server}/uploads/${item.filename}`;
+        const previewURL = `${server}/uploads/${item.preview_filename}`;
+
+        if (!media) return;
+
+        // Show preview if available immediately
+        localforage.getItem(previewKey).then((cachedBlob) => {
+          if (cachedBlob && isImage(item.filename)) {
+            media.src = URL.createObjectURL(cachedBlob);
+          }
+
+          // Always load full media (replaces preview)
+          media.src = fullURL;
+          if (media.tagName === "VIDEO") {
+            media.controls = true;
+          }
+        });
+
+        const card = document.getElementById(mediaId)?.closest(".media-card");
+        if (card && media) {
+          card.addEventListener("click", () => {
+            if (media.tagName === "VIDEO" && !media.controls) {
+              media.controls = true;
+              media.play();
+            }
+          });
         }
-        mediaGrid.innerHTML = "";
 
-        const isImage = (filename) =>
-          /\.(jpe?g|png|gif|webp|bmp)$/i.test(filename);
-        const isVideo = (filename) =>
-          /\.(mp4|webm|mov|avi|mkv)$/i.test(filename);
+        const avatarId = `avatar-${item.username}-${item.filename}`;
+        if (item.avatar) {
+          fetch(`${server}/avatar/${item.avatar}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then((res) => (res.ok ? res.blob() : null))
+            .then((blob) => {
+              const avatar = document.getElementById(avatarId);
+              if (blob && avatar) avatar.src = URL.createObjectURL(blob);
+            });
+        }
+      });
 
-        feed.forEach((item) => {
-          const avatarId = `avatar-${item.username}-${item.filename}`;
-          const card = document.createElement("div");
-          card.className = "media-card";
+      observeBottom();
+      loading = false;
+    };
 
-          let mediaTag = "";
-          if (isVideo(item.filename)) {
-            mediaTag = `<video src="${server}/uploads/${item.filename}" controls muted></video>`;
-          } else if (isImage(item.filename)) {
-            mediaTag = `<img src="${server}/uploads/${item.filename}" alt="${
-              item.caption || ""
-            }" />`;
-          } else {
-            mediaTag = `<p>Unsupported file type</p>`;
-          }
+    const observeBottom = () => {
+      if (observer) observer.disconnect();
+      const sentinel = document.getElementById("scrollSentinel");
+      if (!sentinel) return;
+      observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) loadFeed();
+      });
+      observer.observe(sentinel);
+    };
 
-          card.innerHTML = `
-			<div class="media-header">
-				<img class="avatar" id="${avatarId}" src="/default-pfp.svg" alt="${
-            item.username
-          }" />
-				<strong>${item.username}</strong>
-			</div>
-			${mediaTag}
-			<div class="meta">
-				<p>${item.caption || ""}</p>
-			</div>
-		`;
-          mediaGrid.appendChild(card);
-
-          if (item.avatar) {
-            fetch(`${server}/avatar/${item.avatar}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            })
-              .then((res) => (res.ok ? res.blob() : null))
-              .then((blob) => {
-                if (blob) {
-                  const img = document.getElementById(avatarId);
-                  img.src = URL.createObjectURL(blob);
-                }
-              });
-          }
-        });
-      };
-
-      // Render the initial (cached or default empty) feed.
-      renderFeed(cachedFeed);
-
-      // Fetch fresh feed from the API.
-      fetch(`${server}/feed`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => {
-          if (!res.ok) {
-            // Throw an error if the network response is bad.
-            throw new Error("Network response was not ok");
-          }
-          return res.json();
-        })
-        .then(async (feed) => {
-          console.log("Fetched feed:", feed);
-          // Validate that the fetched feed is an array.
-          if (!Array.isArray(feed)) {
-            console.error("Fetched feed is not an array, got:", feed);
-            feed = [];
-          }
-          // Update the store with the fetched feed.
-          try {
-            await store.dispatch("setFeed", feed);
-          } catch (dispatchError) {
-            console.error("Error setting feed in store:", dispatchError);
-          }
-          // Render the fetched feed.
-          renderFeed(feed);
-        })
-        .catch((error) => {
-          console.error("Error fetching feed:", error);
-        });
+    $onMounted(() => {
+      if (!store.state.token) {
+        $f7.views.main.router.navigate("/login");
+        return;
+      }
+      loadFeed();
     });
 
     return $render;
