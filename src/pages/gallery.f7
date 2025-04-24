@@ -222,11 +222,18 @@
               }
             });
 
+            // Prevent long-press menu on Android
+            anchor.addEventListener("contextmenu", (e) => e.preventDefault());
+
             const img = document.createElement("img");
             img.dataset.src = previewSrc;
             img.alt = item.caption || "";
             img.draggable = false;
             img.onerror = () => console.error("Failed preview:", previewSrc);
+
+            // Prevent long-press menu on Android
+            img.addEventListener("contextmenu", (e) => e.preventDefault());
+
             observer.observe(img);
 
             const tile = document.createElement("div");
