@@ -20,16 +20,23 @@
       const server = store.state.server;
       const container = document.getElementById("galleryContainer");
       if (!token) {
+        console.log("[Gallery] No token, redirecting to login");
         $f7.views.main.router.navigate("/login");
         return;
       }
-      if (!container) return;
+      if (!container) {
+        console.warn("[Gallery] No container found");
+        return;
+      }
 
       const isImage = (f) => /\.(jpe?g|png|gif|webp|bmp)$/i.test(f);
       const isVideo = (f) => /\.(mp4|webm|mov|avi|mkv)$/i.test(f);
 
       const cached = await localforage.getItem("gallery");
-      if (cached) renderGallery(cached);
+      if (cached) {
+        console.log("[Gallery] Using cached data");
+        renderGallery(cached);
+      }
 
       try {
         const res = await fetch(`${server}/gallery`, {
@@ -37,6 +44,7 @@
         });
         if (!res.ok) throw new Error("Failed to fetch gallery");
         const data = await res.json();
+        console.log("[Gallery] Data fetched:", data);
         await localforage.setItem("gallery", data);
         renderGallery(data);
       } catch (err) {
@@ -45,6 +53,8 @@
       }
 
       function renderGallery(grouped) {
+        console.log("[Gallery] Rendering...");
+
         let selectionMode = false;
         let selectedItems = new Set();
         let dragStartIndex = null;
@@ -66,54 +76,73 @@
 					</div>
 				`;
         container.before(topbar);
+        console.log("[Gallery] Topbar inserted");
+
         topbar.querySelector(".gallery-close").onclick = () => clearSelection();
-        topbar.querySelector("#editDateBtn").onclick = () => {
-          const dialog = document.createElement("div");
-          dialog.className = "edit-dialog";
-          dialog.innerHTML = `
-						<div class="dialog-overlay"></div>
-						<div class="dialog-box">
-							<h3>Edit Date</h3>
-							<label>Date: <input type="date" id="edit-date-input" required></label>
-							<label>Time: <input type="time" id="edit-time-input" required></label>
-							<div class="dialog-buttons">
-								<button id="cancel-edit">Cancel</button>
-								<button id="confirm-edit">Save</button>
+
+        const editBtn = topbar.querySelector("#editDateBtn");
+        if (editBtn) {
+          console.log("[Gallery] Edit Date button found");
+          editBtn.addEventListener("click", () => {
+            console.log("[Gallery] Edit Date button clicked");
+
+            const dialog = document.createElement("div");
+            dialog.className = "edit-dialog";
+            dialog.innerHTML = `
+							<div class="dialog-overlay"></div>
+							<div class="dialog-box">
+								<h3>Edit Date</h3>
+								<label>Date: <input type="date" id="edit-date-input" required></label>
+								<label>Time: <input type="time" id="edit-time-input" required></label>
+								<div class="dialog-buttons">
+									<button id="cancel-edit">Cancel</button>
+									<button id="confirm-edit">Save</button>
+								</div>
 							</div>
-						</div>
-					`;
-          document.body.appendChild(dialog);
+						`;
+            document.body.appendChild(dialog);
+            console.log("[Gallery] Edit dialog opened");
 
-          dialog.querySelector("#cancel-edit").onclick = () => dialog.remove();
+            dialog.querySelector("#cancel-edit").onclick = () => {
+              console.log("[Gallery] Edit cancelled");
+              dialog.remove();
+            };
 
-          dialog.querySelector("#confirm-edit").onclick = async () => {
-            const date = dialog.querySelector("#edit-date-input").value;
-            const time = dialog.querySelector("#edit-time-input").value;
-            if (!date || !time)
-              return alert("Please enter both date and time.");
+            dialog.querySelector("#confirm-edit").onclick = async () => {
+              const date = dialog.querySelector("#edit-date-input").value;
+              const time = dialog.querySelector("#edit-time-input").value;
+              if (!date || !time) {
+                alert("Please enter both date and time.");
+                return;
+              }
+              const datetime = new Date(`${date}T${time}`);
+              const timestamp = Math.floor(datetime.getTime() / 1000);
+              console.log(`[Gallery] Saving new timestamp: ${timestamp}`);
 
-            const datetime = new Date(`${date}T${time}`);
-            const timestamp = Math.floor(datetime.getTime() / 1000);
-
-            for (const filename of selectedItems) {
-              await fetch(`${server}/edit-date`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  filename,
-                  new_timestamp: timestamp,
-                }),
-              });
-            }
-            dialog.remove();
-            $f7.views.main.router.refreshPage();
-          };
-        };
+              for (const filename of selectedItems) {
+                console.log(`[Gallery] Updating ${filename}`);
+                await fetch(`${server}/edit-date`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({
+                    filename,
+                    new_timestamp: timestamp,
+                  }),
+                });
+              }
+              dialog.remove();
+              $f7.views.main.router.refreshPage();
+            };
+          });
+        } else {
+          console.warn("[Gallery] Edit Date button not found!");
+        }
 
         function updateUIState() {
+          console.log("[Gallery] Selection size:", selectedItems.size);
           topbar.style.display = selectionMode ? "flex" : "none";
           topbar.querySelector(
             ".gallery-count"
@@ -122,6 +151,7 @@
         }
 
         function clearSelection() {
+          console.log("[Gallery] Clearing selection");
           selectionMode = false;
           selectedItems.clear();
           document
@@ -222,6 +252,7 @@
               holdTimer = setTimeout(() => {
                 longPressed = true;
                 if (!selectionMode) {
+                  console.log("[Gallery] Entering selection mode");
                   selectionMode = true;
                   updateUIState();
                 }
@@ -441,5 +472,64 @@
 
   #galleryContainer {
     user-select: none;
+  }
+  .edit-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999999;
+  }
+
+  .edit-dialog .dialog-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .edit-dialog .dialog-box {
+    position: relative;
+    background: #fff;
+    color: #000;
+    padding: 1rem;
+    border-radius: 12px;
+    z-index: 1;
+    width: 90%;
+    max-width: 320px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .dialog-box h3 {
+    margin-top: 0;
+    font-size: 1.2rem;
+  }
+
+  .dialog-box label {
+    display: block;
+    margin: 0.5rem 0;
+  }
+
+  .dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .dialog-buttons button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    background: #007aff;
+    color: #fff;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .dialog-buttons button#cancel-edit {
+    background: #aaa;
   }
 </style>
