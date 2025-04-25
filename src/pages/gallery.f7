@@ -60,6 +60,7 @@
         let dragStartIndex = null;
         let dragEndIndex = null;
         let isDragging = false;
+        let baseSelection = new Set();
 
         container.innerHTML = "";
 
@@ -250,11 +251,15 @@
             let holdTimer = null;
             let longPressed = false;
 
+            let inverseMode = false; // 🔹 Add at top of renderGallery
+
             tile.addEventListener("pointerdown", (e) => {
               e.preventDefault();
               e.stopPropagation();
               longPressed = false;
               isDragging = false;
+
+              inverseMode = e.altKey || e.metaKey; // ✅ hold Alt or Command for inverse mode
 
               holdTimer = setTimeout(() => {
                 longPressed = true;
@@ -267,9 +272,19 @@
                 dragStartIndex = Number(tile.dataset.index);
                 dragEndIndex = dragStartIndex;
 
-                const filename = item.filename;
-                if (!selectedItems.has(filename)) {
-                  selectedItems.add(filename);
+                baseSelection = new Set(selectedItems);
+                selectedItems = new Set(baseSelection);
+
+                if (inverseMode) {
+                  if (selectedItems.has(item.filename)) {
+                    selectedItems.delete(item.filename);
+                    tile.classList.remove("selected");
+                  } else {
+                    selectedItems.add(item.filename);
+                    tile.classList.add("selected");
+                  }
+                } else {
+                  selectedItems.add(item.filename);
                   tile.classList.add("selected");
                 }
                 updateUIState();
@@ -283,11 +298,28 @@
                 (a, b) => a - b
               );
 
+              selectedItems = new Set(baseSelection); // Start from base
               tileElements.forEach((el, i) => {
                 const fname = el.dataset.filename;
-                if (i >= min && i <= max && !selectedItems.has(fname)) {
-                  selectedItems.add(fname);
-                  el.classList.add("selected");
+                const inRange = i >= min && i <= max;
+
+                if (inRange) {
+                  if (inverseMode) {
+                    if (baseSelection.has(fname)) {
+                      selectedItems.delete(fname);
+                      el.classList.remove("selected");
+                    } else {
+                      selectedItems.add(fname);
+                      el.classList.add("selected");
+                    }
+                  } else {
+                    selectedItems.add(fname);
+                    el.classList.add("selected");
+                  }
+                } else {
+                  if (!selectedItems.has(fname)) {
+                    el.classList.remove("selected");
+                  }
                 }
               });
               updateUIState();
