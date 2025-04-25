@@ -3,12 +3,29 @@
     <div class="navbar">
       <div class="navbar-inner">
         <div class="right">
-          <a href="#" class="html-toggle">HTML</a>
-          <br />
-          <a href="#" class="edit-toggle">Edit</a>
+          <a href="#" class="link icon-only html-toggle" title="Raw HTML">
+            <i class="f7-icons">chevron_left_slash_chevron_right</i>
+          </a>
+          <a
+            href="#"
+            class="link icon-only edit-toggle"
+            title="Edit Mode"
+            style="margin-left: 0.75rem"
+          >
+            <i class="f7-icons">square_pencil</i>
+          </a>
+          <a
+            href="/settings/"
+            class="link icon-only"
+            title="Settings"
+            style="margin-left: 0.75rem"
+          >
+            <i class="f7-icons">gear</i>
+          </a>
         </div>
       </div>
     </div>
+
     <div class="page-content">
       <div
         id="profile-room-content"
@@ -446,17 +463,24 @@
       await renderCustomTags(container, username, userData, false);
 
       const editBtn = document.querySelector(".edit-toggle");
+      const htmlBtn = document.querySelector(".html-toggle");
+      const settingsBtn = document.querySelector('a[href="/settings/"]');
+      const editIcon = editBtn.querySelector("i");
+      const htmlIcon = htmlBtn.querySelector("i");
+
       editBtn.addEventListener("click", async (e) => {
         e.preventDefault();
+        if (!editIcon) return;
+
         if (!editMode) {
           editMode = true;
-          editBtn.innerText = "Save";
+          editIcon.textContent = "checkmark_alt";
           await renderCustomTags(container, username, currentUserData, true);
           enterEditMode(container);
         } else {
           await saveEdits(container);
           editMode = false;
-          editBtn.innerText = "Edit";
+          editIcon.textContent = "square_pencil";
 
           try {
             const res = await fetch(`${server}/room/${username}`, {
@@ -472,20 +496,26 @@
           await renderCustomTags(container, username, currentUserData, false);
         }
       });
-      const htmlBtn = document.querySelector(".html-toggle");
+
       htmlBtn.addEventListener("click", (e) => {
         e.preventDefault();
+        if (!htmlIcon) return;
 
-        const container = document.getElementById("profile-room-content");
         const existing = container.querySelector("#raw-html-editor");
+
         if (existing) {
-          // Already open, close it
           existing.remove();
-          const existingBtn = container.querySelector("#apply-html-btn");
-          if (existingBtn) existingBtn.remove();
-          htmlBtn.innerText = "HTML";
+          const btn = container.querySelector("#apply-html-btn");
+          if (btn) btn.remove();
+          htmlIcon.textContent = "chevron_left_slash_chevron_right";
+          editBtn.style.display = "";
+          if (settingsBtn) settingsBtn.style.display = "";
           return;
         }
+
+        htmlIcon.textContent = "xmark";
+        editBtn.style.display = "none";
+        if (settingsBtn) settingsBtn.style.display = "none";
 
         const textarea = document.createElement("textarea");
         textarea.id = "raw-html-editor";
@@ -511,7 +541,6 @@
 
         applyBtn.onclick = async () => {
           const html = textarea.value;
-
           const form = new URLSearchParams();
           form.append("html", html);
 
@@ -519,7 +548,7 @@
             await fetch(`${store.state.server}/room/save`, {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${store.state.token}`,
+                Authorization: `Bearer ${token}`,
                 "Content-Type": "application/x-www-form-urlencoded",
               },
               body: form.toString(),
@@ -528,7 +557,9 @@
             originalRoomHtml = html;
             container.innerHTML = html;
             await renderCustomTags(container, username, currentUserData, false);
-            htmlBtn.innerText = "HTML";
+            htmlIcon.textContent = "chevron_left_slash_chevron_right";
+            editBtn.style.display = "";
+            if (settingsBtn) settingsBtn.style.display = "";
             textarea.remove();
             applyBtn.remove();
           } catch {
@@ -538,7 +569,6 @@
 
         container.appendChild(textarea);
         container.appendChild(applyBtn);
-        htmlBtn.innerText = "Close HTML";
       });
     });
 

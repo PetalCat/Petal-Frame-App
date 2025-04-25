@@ -1,41 +1,101 @@
 <template>
   <div class="page">
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="title">Settings</div>
+      </div>
+    </div>
+
     <div class="page-content">
-      <div class="block">
-        <h3>Profile Picture</h3>
+      <div class="block text-align-center">
+        <h2 style="margin-bottom: 1rem">Profile Picture</h2>
         <img
           id="currentAvatar"
           src="/img/default-pfp.png"
-          style="width: 100px; border-radius: 50%"
+          style="
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          "
         />
-        <form id="avatarForm">
-          <input type="file" name="file" accept="image/*" required />
-          <button class="button button-fill" type="submit">
-            Upload New Avatar
-          </button>
+
+        <form
+          id="avatarForm"
+          class="list no-hairlines-md"
+          style="margin-top: 1.5rem"
+        >
+          <ul>
+            <li class="item-content item-input">
+              <div class="item-inner">
+                <div class="item-input-wrap">
+                  <input
+                    type="file"
+                    name="file"
+                    accept="image/*"
+                    required
+                    style="padding: 0.75rem"
+                  />
+                </div>
+              </div>
+            </li>
+          </ul>
+          <div class="block">
+            <button class="button button-fill color-primary" type="submit">
+              Upload New Avatar
+            </button>
+          </div>
         </form>
-        <div id="avatarStatus" class="block"></div>
+
+        <div
+          id="avatarStatus"
+          class="block text-align-center text-color-gray"
+        ></div>
+
+        <!-- Logout Button -->
+        <div class="block" style="margin-top: 2rem">
+          <button
+            id="logoutSettingsBtn"
+            class="button button-outline color-red"
+          >
+            Logout
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+  import store from "../js/store.js";
+
   export default (props, { $f7, $onMounted }) => {
     $onMounted(() => {
-      const token = localStorage.getItem("token");
-      const server = localStorage.getItem("server") || "http://127.0.0.1:8000";
+      const token = store.state.token;
+      const server = store.state.server;
 
-      // Fetch current avatar
+      if (!token) {
+        $f7.views.main.router.navigate("/login");
+        return;
+      }
+
       fetch(`${server}/me`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => res.json())
         .then((data) => {
           if (data.avatar) {
-            document.getElementById(
-              "currentAvatar"
-            ).src = `${server}/avatar/${data.avatar}`;
+            fetch(`${server}/avatar/${data.avatar}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+              .then((res) => (res.ok ? res.blob() : null))
+              .then((blob) => {
+                if (blob) {
+                  const url = URL.createObjectURL(blob);
+                  document.getElementById("currentAvatar").src = url;
+                }
+              });
           }
         });
 
@@ -55,16 +115,34 @@
             });
             const data = await res.json();
             if (data.avatar) {
-              document.getElementById(
-                "currentAvatar"
-              ).src = `${server}/avatar/${data.avatar}`;
-              status.innerText = "✅ Updated!";
+              const avatarRes = await fetch(`${server}/avatar/${data.avatar}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (avatarRes.ok) {
+                const blob = await avatarRes.blob();
+                const url = URL.createObjectURL(blob);
+                document.getElementById("currentAvatar").src = url;
+                status.innerText = "✅ Updated!";
+              } else {
+                status.innerText = "✅ Saved, but failed to reload";
+              }
+            } else {
+              status.innerText = "❌ Upload failed";
             }
           } catch (err) {
             status.innerText = "❌ Upload failed";
           }
         });
+
+      // 🔴 Logout Handler
+      document
+        .getElementById("logoutSettingsBtn")
+        .addEventListener("click", () => {
+          store.dispatch("clearAuth");
+          $f7.views.main.router.navigate("/login");
+        });
     });
+
     return $render;
   };
 </script>

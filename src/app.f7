@@ -28,14 +28,6 @@
         <span>Profile</span>
       </div>
     </div>
-
-    <!-- User Dropdown (Desktop Only) -->
-    <div id="userDropdown" class="user-dropdown">
-      <a href="/settings" class="dropdown-item">Settings</a>
-      <button class="dropdown-item" style="color: red" id="logoutButton">
-        Logout
-      </button>
-    </div>
   </div>
 </template>
 
@@ -85,7 +77,6 @@
           const data = await res.json();
           store.dispatch("setAuth", { token, username: data.username });
 
-          // 🔐 Show Admin tab if user is admin
           if (data.is_admin) {
             document.getElementById("adminTab").style.display = "flex";
           }
@@ -108,15 +99,6 @@
         redirectToLogin();
         return;
       }
-
-      document.addEventListener("click", (e) => {
-        if (
-          !e.target.closest("#userDropdown") &&
-          !e.target.closest("#bottomAvatar")
-        ) {
-          document.getElementById("userDropdown").style.display = "none";
-        }
-      });
 
       document.getElementById("logoutButton")?.addEventListener("click", () => {
         store.dispatch("clearAuth");
@@ -142,32 +124,6 @@
           router.navigate(target);
         });
       });
-
-      // Long-press to show user dropdown
-      const dropdown = document.getElementById("userDropdown");
-      const avatarBtn = document.getElementById("bottomAvatar");
-      let pressTimer;
-
-      avatarBtn.addEventListener("mousedown", () => {
-        pressTimer = setTimeout(() => {
-          const rect = avatarBtn.getBoundingClientRect();
-          dropdown.style.left = `${rect.left}px`;
-          dropdown.style.top = `${rect.top - 80}px`;
-          dropdown.style.display = "flex";
-        }, 500);
-      });
-      avatarBtn.addEventListener("mouseup", () => clearTimeout(pressTimer));
-      avatarBtn.addEventListener("mouseleave", () => clearTimeout(pressTimer));
-
-      avatarBtn.addEventListener("touchstart", () => {
-        pressTimer = setTimeout(() => {
-          const rect = avatarBtn.getBoundingClientRect();
-          dropdown.style.left = `${rect.left}px`;
-          dropdown.style.top = `${rect.top - 80}px`;
-          dropdown.style.display = "flex";
-        }, 500);
-      });
-      avatarBtn.addEventListener("touchend", () => clearTimeout(pressTimer));
     });
 
     return $render;
