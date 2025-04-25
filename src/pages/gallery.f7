@@ -1,10 +1,10 @@
 <template>
   <div class="page">
-    <div class="navbar">
+    <!-- <div class="navbar">
       <div class="navbar-inner">
         <div class="title">Gallery</div>
       </div>
-    </div>
+    </div> -->
     <div class="page-content" id="galleryContainer"></div>
   </div>
 </template>
