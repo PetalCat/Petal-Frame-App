@@ -630,4 +630,8 @@
       border-bottom: 1px solid #333;
     }
   }
+  .page-content {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 </style>
