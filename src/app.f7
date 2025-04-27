@@ -9,7 +9,7 @@
       <div class="tab-link" data-page="home">
         <i class="icon f7-icons">house</i><span>Home</span>
       </div>
-      <div class="tab-link" data-page="gallery">
+      <div class="tab-link" data-page="gallery/">
         <i class="icon f7-icons">photo</i><span>Gallery</span>
       </div>
       <div class="tab-link" data-page="upload">

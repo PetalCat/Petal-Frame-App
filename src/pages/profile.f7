@@ -575,36 +575,3 @@
     return $render;
   };
 </script>
-
-<style>
-  .navbar .right {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  .navbar .edit-toggle {
-    color: #007aff;
-    font-weight: bold;
-    cursor: pointer;
-  }
-  .edit-block.dragging {
-    opacity: 0.5;
-  }
-  .drop-indicator {
-    transition: all 0.1s ease-in-out;
-  }
-  .navbar .html-toggle {
-    color: #34c759;
-    margin-left: 1rem;
-    font-weight: bold;
-    cursor: pointer;
-  }
-  .pf-feed-grid img,
-  .pf-feed-grid video {
-    width: 100%;
-    display: block;
-    border-radius: 12px;
-    margin-bottom: 1rem;
-  }
-</style>

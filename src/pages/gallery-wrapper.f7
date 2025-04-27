@@ -1,0 +1,43 @@
+<template>
+  <div class="page" data-name="gallery-wrapper">
+    <!-- Toolbar for switching tabs -->
+    <div class="toolbar toolbar-top tabbar">
+      <div class="toolbar-inner">
+        <a
+          href="/gallery/"
+          class="tab-link tab-link-active"
+          data-route-tab-id="tab-gallery"
+        >
+          Gallery
+        </a>
+        <a
+          href="/gallery/albums/"
+          class="tab-link"
+          data-route-tab-id="tab-albums"
+        >
+          Albums
+        </a>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs tabs-routable" style="height: 100%">
+      <div
+        id="tab-gallery"
+        class="tab tab-active"
+        data-route-tab-id="tab-gallery"
+      ></div>
+      <div id="tab-albums" class="tab" data-route-tab-id="tab-albums"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  export default (props, { $onMounted }) => {
+    $onMounted(() => {
+      // Nothing needed here
+    });
+
+    return $render;
+  };
+</script>

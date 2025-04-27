@@ -1,11 +1,14 @@
 import HomePage from "../pages/home.f7";
 import UploadPage from "../pages/upload.f7";
+import GalleryWrapperPage from "../pages/gallery-wrapper.f7";
 import GalleryPage from "../pages/gallery.f7";
 import ProfilePage from "../pages/profile.f7";
 import LoginPage from "../pages/login.f7";
 import RegisterPage from "../pages/register.f7";
 import SettingsPage from "../pages/settings.f7";
 import AdminPage from "../pages/admin.f7";
+import AlbumPage from "../pages/albums.f7";
+import AlbumViewerPage from "../pages/album-viewer.f7";
 import NotFoundPage from "../pages/notfound.f7";
 
 const routes = [
@@ -22,9 +25,42 @@ const routes = [
     component: UploadPage,
   },
   {
-    path: "/gallery",
+    path: "/gallery/",
+    component: GalleryWrapperPage,
+    tabs: [
+      {
+        path: "/",
+        id: "tab-gallery",
+        component: GalleryPage,
+      },
+      {
+        path: "/albums/",
+        id: "tab-albums",
+        component: AlbumPage,
+      },
+    ],
+  },
+  {
+    path: "/gallery-only",
     component: GalleryPage,
   },
+  {
+    path: "/albums",
+    id: "tab-albums",
+    component: AlbumPage,
+  },
+  {
+    path: "/album/:albumId/",
+    component: AlbumViewerPage,
+    tabs: [
+      {
+        path: "/", // this is important!!
+        id: "tab-album", // match <div id="tab-album">
+        component: GalleryPage, // your gallery.f7
+      },
+    ],
+  },
+
   {
     path: "/profile/:username",
     component: ProfilePage,

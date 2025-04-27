@@ -1,0 +1,65 @@
+<template>
+  <div class="page" data-name="album-viewer">
+    <a href="/gallery/albums/" class="back-arrow">
+      <i class="icon f7-icons">arrow_left</i>
+    </a>
+
+    <div
+      class="page-content"
+      style="display: flex; flex-direction: column; height: 100%"
+    >
+      <div id="albumDetails" style="padding: 1rem; text-align: center">
+        <!-- Album cover + name -->
+      </div>
+
+      <!-- Embedded single tab for album gallery -->
+      <div class="tabs tabs-routable" style="flex-grow: 1; min-height: 0">
+        <div
+          id="tab-album"
+          class="tab tab-active"
+          data-route-tab-id="tab-album"
+        ></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  import store from "../js/store.js";
+
+  export default (props, { $onMounted, $f7 }) => {
+    $onMounted(async () => {
+      const token = store.state.token;
+      const server = store.state.server;
+      const albumId = props.albumId;
+      const details = document.getElementById("albumDetails");
+
+      if (!token) {
+        $f7.views.main.router.navigate("/login");
+        return;
+      }
+
+      try {
+        const res = await fetch(`${server}/album/${albumId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Failed to fetch album details");
+        const album = await res.json();
+
+        let html = `<h1 style="margin-bottom:0.5rem;">${album.name}</h1>`;
+
+        if (album.cover_filename) {
+          const coverUrl = `${server}/uploads/${album.cover_filename}`;
+          html += `<img src="${coverUrl}" style="max-width:90%; border-radius:12px; margin-top:0.5rem;">`;
+        }
+
+        details.innerHTML = html;
+      } catch (err) {
+        console.error("[AlbumViewer] Album load error:", err);
+        details.innerHTML = `<p style="color:red;">Failed to load album info.</p>`;
+      }
+    });
+
+    return $render;
+  };
+</script>

@@ -53,6 +53,50 @@
 	margin-bottom: 4px;
 	color: #111;
 }
+.gallery-topbar {
+    position: sticky;
+    top: 0; /* instead of 44px */
+    z-index: 100;
+    background: #ccc;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 44px;
+    padding: 0 1rem;
+    font-size: 1rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .selection-mode .gallery-topbar {
+    transform: translateY(0);
+  }
+
+  .gallery-topbar .gallery-close {
+    font-size: 1.2rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .gallery-topbar .gallery-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .gallery-topbar .action-icon {
+    cursor: pointer;
+    font-size: 1.2rem;
+    opacity: 0.85;
+    transition: opacity 0.2s;
+  }
+
+  .gallery-topbar .action-icon:hover {
+    opacity: 1;
+  }
+
 
 /* 🌒 Dark mode styles */
 @media (prefers-color-scheme: dark) {
@@ -231,6 +275,33 @@
 	.item-input-wrap textarea::placeholder {
 		color: #888 !important;
 	}
+	.gallery-topbar {
+		background: rgba(20, 20, 20, 0.9);
+		color: #e0e0e0;
+		backdrop-filter: blur(10px);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.gallery-topbar .gallery-close,
+	.gallery-topbar .gallery-count,
+	.gallery-topbar .action-icon {
+		color: #e0e0e0;
+	}
+	.toolbar,
+	.toolbar-inner {
+		background: rgba(0, 0, 0, 0.5) !important;
+		backdrop-filter: blur(10px);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.tab-link {
+		color: #e0e0e0 !important;
+	}
+
+	.tab-link.tab-link-active {
+		color: #ffffff !important;
+		font-weight: bold;
+	}
 }
 
 /* 📱 Responsive layout tweak for smaller screens */
@@ -267,4 +338,8 @@
 		padding-left: 1rem;
 		padding-right: 1rem;
 	}
+}
+.selection-mode .toolbar-top {
+	transform: translateY(-100%);
+	transition: transform 0.3s ease;
 }

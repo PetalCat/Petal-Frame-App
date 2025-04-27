@@ -1,0 +1,135 @@
+<template>
+  <div class="page">
+    <div class="page-content">
+      <div class="block">
+        <div id="albumsContainer"></div>
+        <div style="padding: 1rem; text-align: center">
+          <button class="button button-fill" id="newAlbumBtn">
+            + New Album
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  import store from "../js/store.js";
+
+  export default (props, { $f7, $onMounted }) => {
+    $onMounted(async () => {
+      const token = store.state.token;
+      const server = store.state.server;
+      const container = document.getElementById("albumsContainer");
+      const newAlbumBtn = document.getElementById("newAlbumBtn");
+
+      async function loadAlbums() {
+        try {
+          const res = await fetch(`${server}/albums`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) throw new Error("Failed to fetch albums");
+          const albums = await res.json();
+
+          container.innerHTML = "";
+          const grid = document.createElement("div");
+          grid.className = "albums-grid";
+
+          albums.forEach((album) => {
+            const card = document.createElement("div");
+            card.className = "album-card";
+            card.innerHTML = `
+							<div class="album-cover" style="background-image: url('${server}/uploads/preview_${
+              album.cover_filename || "default.jpg"
+            }')"></div>
+							<div class="album-info">
+								<h3>${album.name}</h3>
+								<p>${album.media_count} items</p>
+							</div>
+						`;
+            card.onclick = () => {
+              $f7.views.main.router.navigate(`/album/${album.id}/`);
+            };
+            grid.appendChild(card);
+          });
+
+          container.appendChild(grid);
+        } catch (err) {
+          console.error("[Albums] Load error:", err);
+          container.innerHTML = `<p style="padding: 1rem; color: red;">Failed to load albums.</p>`;
+        }
+      }
+
+      newAlbumBtn.onclick = () => {
+        $f7.dialog.prompt("Enter Album Name:", async (name) => {
+          if (!name) return;
+          try {
+            const formData = new FormData();
+            formData.append("name", name);
+
+            const res = await fetch(`${server}/albums`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
+            });
+            if (!res.ok) throw new Error("Failed to create album");
+            loadAlbums();
+          } catch (err) {
+            console.error("[Albums] Create error:", err);
+          }
+        });
+      };
+
+      loadAlbums();
+    });
+
+    return $render;
+  };
+</script>
+
+<style>
+  .albums-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 16px;
+    padding: 1rem;
+  }
+
+  .album-card {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .album-card:hover {
+    transform: scale(1.03);
+  }
+
+  .album-cover {
+    width: 100%;
+    height: 100px;
+    background-size: cover;
+    background-position: center;
+  }
+
+  .album-info {
+    padding: 0.5rem;
+    text-align: center;
+  }
+
+  .album-info h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: bold;
+    color: #333;
+  }
+
+  .album-info p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #666;
+  }
+</style>
