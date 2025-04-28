@@ -74,15 +74,28 @@
         topbar.className = "gallery-topbar";
         topbar.style.display = "none";
         topbar.innerHTML = `
-					<span class="gallery-close">✕</span>
-					<span class="gallery-count">0 selected</span>
-					<div class="gallery-actions">
-						<i class="f7-icons action-icon" title="Edit Date" id="editDateBtn">calendar</i>
-						<i class="f7-icons action-icon" title="Add to Album">folder_badge_plus</i>
-						<i class="f7-icons action-icon" title="Trash">trash</i>
-					</div>
-				`;
+	<div class="gallery-toolbar">
+		<div class="gallery-toolbar-left">
+			<button class="toolbar-button gallery-close" title="Cancel">
+				<i class="f7-icons">xmark_circle_fill</i>
+			</button>
+			<span class="gallery-count">0 selected</span>
+		</div>
+		<div class="gallery-toolbar-right">
+			<button class="toolbar-button" id="editDateBtn" title="Edit Date">
+				<i class="f7-icons">calendar</i>
+			</button>
+			<button class="toolbar-button" id="addToAlbumBtn" title="Add to Album">
+				<i class="f7-icons">folder_badge_plus</i>
+			</button>
+			<button class="toolbar-button remove" id="removeFromAlbumBtn" title="Remove from Album" style="display:none;">
+				<i class="f7-icons">folder_badge_minus</i>
+			</button>
+		</div>
+	</div>
+`;
         container.before(topbar);
+
         console.log("[Gallery] Topbar inserted");
 
         topbar.querySelector(".gallery-close").onclick = () => clearSelection();
@@ -124,19 +137,28 @@
               }
               const datetime = new Date(`${date}T${time}`);
               const timestamp = Math.floor(datetime.getTime() / 1000);
-              console.log(`[Gallery] Saving new timestamp: ${timestamp}`);
+
+              if (!timestamp || selectedItems.size === 0) {
+                alert("No items selected or invalid time.");
+                return;
+              }
 
               const formData = new FormData();
               for (const filename of selectedItems) {
                 formData.append("filenames", filename);
               }
-              await fetch(`${server}/album/${albumId}/add`, {
+              formData.append("timestamp", timestamp);
+
+              await fetch(`${server}/media/edit_dates`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData,
               });
 
               dialog.remove();
+              $f7.toast
+                .create({ text: "Dates updated!", closeTimeout: 2000 })
+                .open();
               $f7.views.main.router.refreshPage();
             };
           });
@@ -144,90 +166,133 @@
           console.warn("[Gallery] Edit Date button not found!");
         }
 
-        const addToAlbumBtn = topbar.querySelector(
-          ".gallery-actions i[title='Add to Album']"
-        );
-        if (addToAlbumBtn) {
-          addToAlbumBtn.addEventListener("click", async () => {
-            if (selectedItems.size === 0) {
-              alert("Select items first!");
+        const addToAlbumBtn = topbar.querySelector("#addToAlbumBtn");
+
+        addToAlbumBtn.addEventListener("click", async () => {
+          if (selectedItems.size === 0) {
+            alert("Select items first!");
+            return;
+          }
+
+          try {
+            const res = await fetch(`${server}/albums`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) throw new Error("Failed to fetch albums");
+
+            const albums = await res.json();
+            if (albums.length === 0) {
+              alert("No albums available. Create one first!");
               return;
             }
 
-            try {
-              const res = await fetch(`${server}/albums`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              if (!res.ok) throw new Error("Failed to fetch albums");
+            const selectHtml = albums
+              .map(
+                (album) =>
+                  `<option value="${album.id}">${album.name} (${album.media_count})</option>`
+              )
+              .join("");
 
-              const albums = await res.json();
-              if (albums.length === 0) {
-                alert("No albums available. Create one first!");
+            const dialog = document.createElement("div");
+            dialog.className = "edit-dialog";
+            dialog.innerHTML = `
+			<div class="dialog-overlay"></div>
+			<div class="dialog-box">
+				<h3>Add to Album</h3>
+				<label>
+					<select id="album-select" style="width:100%; padding:0.5rem;">
+						${selectHtml}
+					</select>
+				</label>
+				<div class="dialog-buttons">
+					<button id="cancel-add">Cancel</button>
+					<button id="confirm-add">Add</button>
+				</div>
+			</div>
+		`;
+            document.body.appendChild(dialog);
+
+            dialog.querySelector("#cancel-add").onclick = () => dialog.remove();
+
+            dialog.querySelector("#confirm-add").onclick = async () => {
+              const targetAlbumId = dialog.querySelector("#album-select").value;
+              if (!targetAlbumId) {
+                alert("Please select an album.");
                 return;
               }
 
-              const selectHtml = albums
-                .map(
-                  (album) =>
-                    `<option value="${album.id}">${album.name} (${album.media_count})</option>`
-                )
-                .join("");
+              const formData = new FormData();
+              for (const filename of selectedItems) {
+                formData.append("filenames", filename);
+              }
 
-              const dialog = document.createElement("div");
-              dialog.className = "edit-dialog";
-              dialog.innerHTML = `
-				<div class="dialog-overlay"></div>
-				<div class="dialog-box">
-					<h3>Add to Album</h3>
-					<label>
-						<select id="album-select" style="width:100%; padding:0.5rem;">
-							${selectHtml}
-						</select>
-					</label>
-					<div class="dialog-buttons">
-						<button id="cancel-add">Cancel</button>
-						<button id="confirm-add">Add</button>
-					</div>
-				</div>
-			`;
-              document.body.appendChild(dialog);
+              await fetch(`${server}/album/${targetAlbumId}/add`, {
+                // ✅ use targetAlbumId
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData,
+              });
 
-              dialog.querySelector("#cancel-add").onclick = () =>
-                dialog.remove();
+              dialog.remove();
+              clearSelection();
+              $f7.toast
+                .create({
+                  text: `Added ${selectedItems.size} items to album.`,
+                  closeTimeout: 2000,
+                })
+                .open();
+            };
+          } catch (err) {
+            console.error("[Gallery] Failed to add to album:", err);
+            alert("Failed to fetch albums. Try again later.");
+          }
+        });
 
-              dialog.querySelector("#confirm-add").onclick = async () => {
-                const albumId = dialog.querySelector("#album-select").value;
-                if (!albumId) {
-                  alert("Please select an album.");
-                  return;
-                }
-
-                const formData = new FormData();
-                for (const filename of selectedItems) {
-                  formData.append("filenames", filename);
-                }
-
-                await fetch(`${server}/album/${albumId}/add`, {
-                  method: "POST",
-                  headers: { Authorization: `Bearer ${token}` },
-                  body: formData,
-                });
-
-                dialog.remove();
-                clearSelection();
-                $f7.toast
-                  .create({
-                    text: `Added ${selectedItems.size} items to album.`,
-                    closeTimeout: 2000,
-                  })
-                  .open();
-              };
-            } catch (err) {
-              console.error("[Gallery] Failed to add to album:", err);
-              alert("Failed to fetch albums. Try again later.");
-            }
-          });
+        const removeFromAlbumBtn = topbar.querySelector("#removeFromAlbumBtn");
+        if (albumId) {
+          removeFromAlbumBtn.style.display = "inline-flex";
+        } else {
+          removeFromAlbumBtn.style.display = "none";
         }
+
+        removeFromAlbumBtn.addEventListener("click", async () => {
+          if (selectedItems.size === 0) {
+            alert("Select items first!");
+            return;
+          }
+
+          if (!albumId) {
+            alert("No album context to remove from.");
+            return;
+          }
+
+          try {
+            const confirmRemove = confirm(
+              `Remove ${selectedItems.size} item(s) from this album?`
+            );
+            if (!confirmRemove) return;
+
+            const formData = new FormData();
+            for (const filename of selectedItems) {
+              formData.append("filenames", filename);
+            }
+
+            await fetch(`${server}/album/${albumId}/remove`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
+            });
+
+            clearSelection();
+            $f7.toast
+              .create({ text: "Removed from album!", closeTimeout: 2000 })
+              .open();
+            $f7.views.main.router.refreshPage();
+          } catch (err) {
+            console.error("[Gallery] Failed to remove from album:", err);
+            alert("Failed to remove items. Try again later.");
+          }
+        });
 
         function updateUIState() {
           console.log("[Gallery] Selection size:", selectedItems.size);
@@ -630,8 +695,96 @@
       border-bottom: 1px solid #333;
     }
   }
+
   .page-content {
+    padding-top: 92px;
+    padding-bottom: 80px;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .gallery-topbar {
+    position: fixed;
+    top: 44px;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid #ddd;
+    padding: 0.5rem 0;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+
+  .gallery-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  .gallery-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .gallery-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    flex-grow: 1; /* 🔥 this pushes the buttons fully to the right */
+  }
+
+  .toolbar-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: #007aff;
+    color: white;
+    border-radius: 50%;
+    font-size: 14px;
+    border: none;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .toolbar-button.remove {
+    background: #ff3b30;
+  }
+
+  .toolbar-button i {
+    font-size: 18px;
+  }
+
+  .gallery-count {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #333;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .gallery-topbar {
+      background: rgba(17, 17, 17, 0.9);
+      border-bottom: 1px solid #333;
+    }
+    .gallery-count {
+      color: #eee;
+    }
+    .toolbar-button {
+      background: #0a84ff;
+    }
   }
 </style>
