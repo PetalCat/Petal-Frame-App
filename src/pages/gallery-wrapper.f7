@@ -1,6 +1,5 @@
 <template>
   <div class="page" data-name="gallery-wrapper">
-    <!-- Toolbar for switching tabs -->
     <div class="toolbar toolbar-top tabbar">
       <div class="toolbar-inner">
         <a
@@ -20,14 +19,16 @@
       </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="tabs tabs-routable" style="height: 100%">
-      <div
-        id="tab-gallery"
-        class="tab tab-active"
-        data-route-tab-id="tab-gallery"
-      ></div>
-      <div id="tab-albums" class="tab" data-route-tab-id="tab-albums"></div>
+    <div class="page-content" style="padding-top: 44px">
+      <!-- ✅ Fix here -->
+      <div class="tabs tabs-routable">
+        <div
+          id="tab-gallery"
+          class="tab tab-active"
+          data-route-tab-id="tab-gallery"
+        ></div>
+        <div id="tab-albums" class="tab" data-route-tab-id="tab-albums"></div>
+      </div>
     </div>
   </div>
 </template>

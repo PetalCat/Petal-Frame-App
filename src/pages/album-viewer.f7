@@ -1,25 +1,27 @@
 <template>
-  <div class="page" data-name="album-viewer">
+  <div
+    class="page"
+    data-name="album-viewer"
+    style="display: flex; flex-direction: column; height: 100%"
+  >
     <a href="/gallery/albums/" class="back-arrow">
       <i class="icon f7-icons">arrow_left</i>
     </a>
 
-    <div
-      class="page-content"
-      style="display: flex; flex-direction: column; height: 100%"
-    >
-      <div id="albumDetails" style="padding: 1rem; text-align: center">
-        <!-- Album cover + name -->
-      </div>
+    <div id="albumDetails" style="padding: 1rem; text-align: center">
+      <!-- Album cover + name will load here -->
+    </div>
 
-      <!-- Embedded single tab for album gallery -->
-      <div class="tabs tabs-routable" style="flex-grow: 1; min-height: 0">
-        <div
-          id="tab-album"
-          class="tab tab-active"
-          data-route-tab-id="tab-album"
-        ></div>
-      </div>
+    <!-- Embedded gallery tab -->
+    <div
+      class="page-content tabs tabs-routable"
+      style="flex-grow: 1; min-height: 0"
+    >
+      <div
+        id="tab-album"
+        class="tab tab-active"
+        data-route-tab-id="tab-album"
+      ></div>
     </div>
   </div>
 </template>
