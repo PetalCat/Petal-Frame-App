@@ -16,11 +16,17 @@
         >
           Albums
         </a>
+        <a
+          id="myUploadsLink"
+          class="tab-link"
+          data-route-tab-id="tab-user-uploads"
+        >
+          My Uploads
+        </a>
       </div>
     </div>
 
     <div class="page-content" style="padding-top: 44px">
-      <!-- ✅ Fix here -->
       <div class="tabs tabs-routable">
         <div
           id="tab-gallery"
@@ -28,15 +34,28 @@
           data-route-tab-id="tab-gallery"
         ></div>
         <div id="tab-albums" class="tab" data-route-tab-id="tab-albums"></div>
+        <div
+          id="tab-user-uploads"
+          class="tab"
+          data-route-tab-id="tab-user-uploads"
+        ></div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+  import store from "../js/store.js";
+
   export default (props, { $onMounted }) => {
     $onMounted(() => {
-      // Nothing needed here
+      const link = document.getElementById("myUploadsLink");
+      if (link && store.state.username) {
+        link.setAttribute(
+          "href",
+          `/user-uploads/${encodeURIComponent(store.state.username)}/`
+        );
+      }
     });
 
     return $render;
