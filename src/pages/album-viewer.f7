@@ -1,9 +1,5 @@
 <template>
-  <div
-    class="page"
-    data-name="album-viewer"
-    style="display: flex; flex-direction: column; height: 100%"
-  >
+  <div class="page" data-name="album-viewer">
     <div
       style="
         display: flex;
@@ -20,17 +16,9 @@
       </button>
     </div>
 
-    <div id="albumDetails" style="padding: 1rem; text-align: center"></div>
-
-    <div
-      class="page-content tabs tabs-routable"
-      style="flex-grow: 1; min-height: 0"
-    >
-      <div
-        id="tab-album"
-        class="tab tab-active"
-        data-route-tab-id="tab-album"
-      ></div>
+    <div class="page-content">
+      <div id="albumDetails" style="padding: 1rem; text-align: center"></div>
+      <div id="album-gallery"></div>
     </div>
   </div>
 </template>
@@ -38,11 +26,11 @@
 <script>
   import store from "../js/store.js";
 
-  export default (props, { $onMounted, $f7 }) => {
+  export default (props, { $onMounted, $f7, $f7route }) => {
     $onMounted(async () => {
       const token = store.state.token;
       const server = store.state.server;
-      const albumId = props.albumId;
+      const albumId = $f7route.params.albumId;
       const details = document.getElementById("albumDetails");
 
       if (!token) {
@@ -99,7 +87,7 @@
                 onClick: async () => {
                   $f7.dialog.preloader("Loading media...");
                   try {
-                    const container = document.getElementById("tab-album");
+                    const container = document.getElementById("album-gallery");
                     const imgs = Array.from(
                       container.querySelectorAll(".media-tile img")
                     );
@@ -117,16 +105,16 @@
 
                     const sheet = $f7.sheet.create({
                       content: `
-				<div class="sheet-modal sheet-modal-cover">
-					<div class="sheet-modal-inner">
-						<div class="block-title" style="text-align:center;">Pick New Cover</div>
-						${html}
-						<div class="block" style="text-align:center;">
-							<button class="button button-fill close-sheet">Cancel</button>
-						</div>
-					</div>
-				</div>
-			`,
+												<div class="sheet-modal sheet-modal-cover">
+													<div class="sheet-modal-inner">
+														<div class="block-title" style="text-align:center;">Pick New Cover</div>
+														${html}
+														<div class="block" style="text-align:center;">
+															<button class="button button-fill close-sheet">Cancel</button>
+														</div>
+													</div>
+												</div>
+											`,
                       closeByBackdropClick: true,
                     });
 
@@ -191,64 +179,12 @@
 </script>
 
 <style>
-  .dropdown-toggle {
-    cursor: pointer;
-    font-size: 24px;
-  }
-  .dropdown-menu {
-    min-width: 140px;
-    background: white;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .dropdown-item {
-    padding: 0.75rem 1rem;
-    cursor: pointer;
-  }
-  .dropdown-item:hover {
-    background: #f0f0f0;
-  }
-  .edit-dialog {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 999999;
-  }
-  .edit-dialog .dialog-box {
-    background: white;
-    padding: 1rem;
-    border-radius: 12px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-    width: 90%;
-    max-width: 320px;
-  }
-  .dialog-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-  }
-  .dialog-buttons button {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 6px;
-    background: #007aff;
-    color: white;
-    cursor: pointer;
-  }
-  .dialog-buttons button#cancel-cover {
-    background: #aaa;
-  }
   .dialog-media-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
     padding: 1rem;
   }
-
   .dialog-media-grid img {
     width: 100%;
     height: auto;
@@ -260,7 +196,6 @@
     max-height: 50vh;
     overflow-y: auto;
   }
-
   .sheet-modal-cover .block {
     margin: 0;
   }
