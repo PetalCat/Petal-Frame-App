@@ -22,6 +22,14 @@ var app = new Framework7({
   store: store,
   // App routes
   routes: routes,
+  view: {
+    xhrCache: false, // ⛔ Disable XHR caching
+    stackPages: false, // ⛔ Don't keep previous pages in memory stack
+    reloadAll: true, // ⛔ Always reload pages from routes
+  },
+  router: {
+    ignoreCache: true, // ⛔ Never use route cache
+  },
   on: {
     init: function () {
       if (isMobile()) {
