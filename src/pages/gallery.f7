@@ -8,6 +8,8 @@
   import "fslightbox";
 
   export default (props, { $f7, $onMounted, $f7route = null }) => {
+    $f7.views.main.router.clearPreviousHistory();
+
     let albumId = null;
     let user = null;
 

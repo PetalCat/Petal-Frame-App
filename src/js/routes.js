@@ -28,22 +28,26 @@ const routes = [
   {
     path: "/gallery/",
     component: GalleryWrapperPage,
+    keepAlive: false,
     tabs: [
       {
         path: "/",
         id: "tab-gallery",
         component: GalleryPage,
+        keepAlive: false,
       },
       {
         path: "/albums/",
         id: "tab-albums",
         component: AlbumPage,
+        keepAlive: false,
       },
     ],
   },
   {
     path: "/gallery-only",
     component: GalleryPage,
+    keepAlive: false,
   },
   {
     path: "/albums",
@@ -53,22 +57,26 @@ const routes = [
   {
     path: "/album/:albumId/",
     component: AlbumViewerPage,
+    keepAlive: false,
     tabs: [
       {
         path: "/", // this is important!!
         id: "album-gallery", // match <div id="tab-album">
         component: GalleryPage, // your gallery.f7
+        keepAlive: false,
       },
     ],
   },
   {
     path: "/user-uploads/:user/", // Route for user uploads
-    component: UserViewerPage, // Use the user-viewer page
+    component: UserViewerPage, // Use the user-viewer page\
+    keepAlive: false,
     tabs: [
       {
         path: "/", // this is important!!
         id: "user-gallery", // match <div id="tab-album">
         component: GalleryPage, // your gallery.f7
+        keepAlive: false,
       },
     ],
   },
