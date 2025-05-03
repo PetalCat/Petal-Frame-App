@@ -9,45 +9,46 @@ import store from "./store.js";
 import "../css/app.css";
 import { registerSW } from "virtual:pwa-register";
 
-var app = new Framework7({
-  name: "Petal Frame", // App name
-  theme: "auto", // Automatic theme detection
-  colors: {
-    primary: "#1356D3", // ✅ standard 6-digit hex
-  },
+registerSW({ immediate: true });
 
-  el: "#app", // App root element
-  component: App, // App main component
-  // App store
+const app = new Framework7({
+  name: "Petal Frame",
+  theme: "auto",
+  colors: {
+    primary: "#1356D3",
+  },
+  el: "#app",
+  component: App,
   store: store,
-  // App routes
   routes: routes,
   view: {
-    xhrCache: false, // ⛔ Disable XHR caching
-    stackPages: false, // ⛔ Don't keep previous pages in memory stack
-    reloadAll: true, // ⛔ Always reload pages from routes
+    xhrCache: false,
+    stackPages: false,
+    reloadAll: true,
   },
   router: {
-    ignoreCache: true, // ⛔ Never use route cache
+    ignoreCache: true,
   },
   on: {
-    init: function () {
-      if (isMobile()) {
-        console.log("Running on mobile");
-      } else {
-        console.log("Running on web");
-      }
+    init() {
+      console.log("Running on", isMobile() ? "mobile" : "web");
 
-      registerSW({
-        immediate: true, // Register immediately
-        onNeedRefresh() {
-          console.log("[PWA] Update available – forcing reload");
-          window.location.reload(true);
-        },
-        onRegisteredSW(swUrl, registration) {
-          console.log("[PWA] SW registered:", swUrl);
-        },
-      });
+      // ✅ Delay to allow initial load before checking
+      setTimeout(async () => {
+        try {
+          const res = await fetch("/version.txt", { cache: "no-store" });
+          const serverVersion = await res.text();
+          const localVersion = localStorage.getItem("pf_version");
+
+          if (localVersion !== serverVersion) {
+            console.log("[PWA] New version detected – reloading");
+            localStorage.setItem("pf_version", serverVersion);
+            window.location.reload(true);
+          }
+        } catch (err) {
+          console.warn("[PWA] Failed to check version.txt", err);
+        }
+      }, 10000);
     },
   },
 });
