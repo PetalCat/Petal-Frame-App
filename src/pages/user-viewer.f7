@@ -1,0 +1,115 @@
+<template>
+  <div
+    class="page"
+    data-name="user-viewer"
+    style="display: flex; flex-direction: column; height: 100%"
+  >
+    <div
+      style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem 0 1rem;
+      "
+    >
+      <a href="/gallery/" class="back-arrow">
+        <i class="icon f7-icons">arrow_left</i>
+      </a>
+      <button id="userOptionsBtn" class="toolbar-button">
+        <i class="f7-icons">ellipsis_vertical</i>
+      </button>
+    </div>
+
+    <div id="userDetails" style="padding: 1rem; text-align: center"></div>
+
+    <div
+      class="page-content tabs tabs-routable"
+      style="flex-grow: 1; min-height: 0"
+    >
+      <div
+        id="tab-user"
+        class="tab tab-active"
+        data-route-tab-id="tab-user"
+      ></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  import store from "../js/store.js";
+
+  export default (props, { $onMounted, $f7, $f7route }) => {
+    $onMounted(async () => {
+      const token = store.state.token;
+      const server = store.state.server;
+      const username = $f7route.params.user; // Extract username from route
+      const details = document.getElementById("userDetails");
+
+      if (!token) {
+        $f7.views.main.router.navigate("/login");
+        return;
+      }
+
+      async function loadUser() {
+        let html = "";
+        try {
+          const res = await fetch(`${server}/users/${username}`, {
+            // Use 'username' here
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) throw new Error("Failed to fetch user details");
+          const user = await res.json();
+          if (user.avatar) {
+            try {
+              const avatarRes = await fetch(`${server}/avatar/${user.avatar}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!avatarRes.ok) throw new Error("Failed to fetch avatar");
+              const avatarBlob = await avatarRes.blob();
+              const avatarUrl = URL.createObjectURL(avatarBlob);
+              html += `<img src="${avatarUrl}" class="pf-avatar" alt="Avatar" />`;
+            } catch (err) {
+              console.error("[UserViewer] Avatar load error:", err);
+              html += `<p style="color:red;">Failed to load avatar.</p>`;
+            }
+          }
+
+          html += `<h1 style="margin-bottom:0.5rem;">${user.username}</h1>`; // Use 'username' instead of 'user'
+          details.innerHTML = html;
+        } catch (err) {
+          console.error("[UserViewer] User load error:", err);
+          details.innerHTML = `<p style="color:red;">Failed to load user info.</p>`;
+        }
+      }
+
+      await loadUser();
+
+      document.getElementById("userOptionsBtn").onclick = () => {
+        const actions = $f7.actions.create({
+          buttons: [
+            [
+              {
+                text: "-",
+                onClick: () => {
+                  console.log("User options clicked");
+                },
+              },
+            ],
+          ],
+        });
+        actions.open();
+      };
+    });
+    return $render;
+  };
+</script>
+
+<style>
+  .pf-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 2px solid #eeeeee;
+    object-fit: cover;
+  }
+</style>

@@ -9,11 +9,17 @@
 
   export default (props, { $f7, $onMounted, $f7route = null }) => {
     let albumId = null;
+    let user = null;
 
     if (props && props.albumId) {
       albumId = props.albumId;
     } else if ($f7route && $f7route.query && $f7route.query.albumId) {
       albumId = $f7route.query.albumId;
+    }
+    if (props && props.user) {
+      user = props.user;
+    } else if ($f7route && $f7route.query && $f7route.query.user) {
+      user = $f7route.query.user;
     }
 
     $onMounted(async () => {
@@ -34,15 +40,20 @@
       const isVideo = (f) => /\.(mp4|webm|mov|avi|mkv)$/i.test(f);
 
       const cached = await localforage.getItem("gallery");
-      if (cached) {
+      if (cached && !albumId && !user) {
         console.log("[Gallery] Using cached data");
         renderGallery(cached);
       }
 
       try {
-        const endpoint = albumId
-          ? `${server}/album/${albumId}/media`
-          : `${server}/gallery`;
+        let endpoint;
+        if (albumId) {
+          endpoint = `${server}/album/${albumId}/media`;
+        } else if (user) {
+          endpoint = `${server}/gallery/user/${user}`;
+        } else {
+          endpoint = `${server}/gallery`;
+        }
 
         const res = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${token}` },

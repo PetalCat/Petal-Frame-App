@@ -9,6 +9,7 @@ import SettingsPage from "../pages/settings.f7";
 import AdminPage from "../pages/admin.f7";
 import AlbumPage from "../pages/albums.f7";
 import AlbumViewerPage from "../pages/album-viewer.f7";
+import UserViewerPage from "../pages/user-viewer.f7";
 import NotFoundPage from "../pages/notfound.f7";
 
 const routes = [
@@ -60,7 +61,17 @@ const routes = [
       },
     ],
   },
-
+  {
+    path: "/user-uploads/:user/", // Route for user uploads
+    component: UserViewerPage, // Use the user-viewer page
+    tabs: [
+      {
+        path: "/", // this is important!!
+        id: "tab-user", // match <div id="tab-album">
+        component: GalleryPage, // your gallery.f7
+      },
+    ],
+  },
   {
     path: "/profile/:username",
     component: ProfilePage,
