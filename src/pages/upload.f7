@@ -18,6 +18,7 @@
                 <input
                   type="file"
                   name="files"
+                  id="mediaInput"
                   accept="image/*,video/*"
                   multiple
                   required
@@ -31,6 +32,7 @@
         </div>
       </form>
       <div class="block" id="statusBlock"></div>
+      <div class="block" id="queueBlock"></div>
     </div>
   </div>
 </template>
@@ -38,8 +40,15 @@
 <script>
   import store from "../js/store.js";
 
-  export default (props, { $f7, $onMounted }) => {
+  export default (props, { $f7, $onMounted, $onUnmounted }) => {
+    let pollInterval = null;
+
+    function fileKey(file) {
+      return `${file.name}|${file.size}|${file.lastModified}`;
+    }
+
     $onMounted(() => {
+      console.log("[UploadPage] Mounted. Token present:", !!store.state.token);
       const token = store.state.token;
       const server = store.state.server;
 
@@ -50,32 +59,120 @@
 
       const form = document.getElementById("uploadForm");
       const status = document.getElementById("statusBlock");
+      const queueBlock = document.getElementById("queueBlock");
+      const fileInput = document.getElementById("mediaInput");
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        status.innerText = "Uploading...";
+
+        const caption = form.caption.value;
+        const files = fileInput.files;
+
+        if (!files.length) {
+          status.innerText = "❌ No files selected.";
+          return;
+        }
+
+        const uploadedKeys = new Set(
+          JSON.parse(localStorage.getItem("uploadedFiles") || "[]")
+        );
+
+        const toUpload = [];
+        for (const file of files) {
+          const key = fileKey(file);
+          if (!uploadedKeys.has(key)) {
+            toUpload.push(file);
+            console.log("[UploadPage] Appending new file:", file.name);
+          } else {
+            console.log(
+              "[UploadPage] Skipping already uploaded file:",
+              file.name
+            );
+          }
+        }
+
+        if (toUpload.length === 0) {
+          status.innerText = "✅ All selected files already uploaded.";
+          return;
+        }
+
+        status.innerText = `📤 Uploading ${toUpload.length} new file(s)...`;
+        console.log(
+          "[UploadPage] Starting upload of",
+          toUpload.length,
+          "file(s)"
+        );
+
         const formData = new FormData();
-        formData.append("caption", form.caption.value);
-        for (const file of form.files.files) {
+        formData.append("caption", caption);
+        for (const file of toUpload) {
           formData.append("files", file);
         }
 
         try {
           const res = await fetch(`${server}/upload`, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
             body: formData,
           });
+          console.log("[UploadPage] Upload response status:", res.status);
+
           if (!res.ok) throw new Error("Upload failed");
           const data = await res.json();
+          console.log("[UploadPage] Upload success:", data);
+
           status.innerText = `✅ Uploaded ${data.uploaded} file(s)!`;
           form.reset();
+
+          toUpload.forEach((file) => uploadedKeys.add(fileKey(file)));
+          localStorage.setItem(
+            "uploadedFiles",
+            JSON.stringify([...uploadedKeys])
+          );
         } catch (err) {
           status.innerText = `❌ Error: ${err.message}`;
         }
+
+        updateQueueStatus();
+        startQueuePolling();
       });
+
+      async function updateQueueStatus() {
+        console.log("[UploadPage] Fetching queue status...");
+        try {
+          const res = await fetch(`${server}/queue/status`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const queue = await res.json();
+            console.log("[UploadPage] Queue data:", queue);
+            if (queue.length === 0) {
+              queueBlock.innerText = "✅ No items in your queue.";
+            } else {
+              queueBlock.innerHTML =
+                `<b>Your Upload Queue:</b><br>` +
+                queue
+                  .map((item) => `• ${item.filename} (${item.status})`)
+                  .join("<br>");
+            }
+          }
+        } catch (err) {
+          console.log("[UploadPage] Queue fetch error:", err);
+          queueBlock.innerText = "⚠️ Couldn't fetch queue.";
+        }
+      }
+
+      function startQueuePolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(updateQueueStatus, 5000);
+        console.log("[UploadPage] Started queue polling.");
+      }
+
+      startQueuePolling();
+    });
+
+    $onUnmounted(() => {
+      if (pollInterval) clearInterval(pollInterval);
     });
 
     return $render;

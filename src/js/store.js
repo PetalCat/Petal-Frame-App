@@ -8,6 +8,7 @@ const store = createStore({
     server: "https://base.petalcat.dev",
     userCache: {},
     feed: [], // Initialize feed as an empty array for caching
+    pendingUploads: [], // Add this
   },
   actions: {
     async loadPersistedState({ state }) {
