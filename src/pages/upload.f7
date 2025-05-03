@@ -11,6 +11,18 @@
               </div>
             </div>
           </li>
+
+          <li class="item-content item-input">
+            <div class="item-inner">
+              <div class="item-title item-label">Album (Optional)</div>
+              <div class="item-input-wrap">
+                <select name="album" id="albumSelect">
+                  <option value="">— No album —</option>
+                </select>
+              </div>
+            </div>
+          </li>
+
           <li class="item-content item-input">
             <div class="item-inner">
               <div class="item-title item-label">Media (Photos & Videos)</div>
@@ -27,10 +39,12 @@
             </div>
           </li>
         </ul>
+
         <div class="block">
           <button class="button button-fill" type="submit">Upload</button>
         </div>
       </form>
+
       <div class="block" id="statusBlock"></div>
       <div class="block" id="queueBlock"></div>
     </div>
@@ -39,16 +53,13 @@
 
 <script>
   import store from "../js/store.js";
+  import localforage from "localforage";
 
   export default (props, { $f7, $onMounted, $onUnmounted }) => {
     let pollInterval = null;
+    let albumSelect, form, fileInput, status, queueBlock;
 
-    function fileKey(file) {
-      return `${file.name}|${file.size}|${file.lastModified}`;
-    }
-
-    $onMounted(() => {
-      console.log("[UploadPage] Mounted. Token present:", !!store.state.token);
+    $onMounted(async () => {
       const token = store.state.token;
       const server = store.state.server;
 
@@ -57,124 +68,153 @@
         return;
       }
 
-      const form = document.getElementById("uploadForm");
-      const status = document.getElementById("statusBlock");
-      const queueBlock = document.getElementById("queueBlock");
-      const fileInput = document.getElementById("mediaInput");
+      form = document.getElementById("uploadForm");
+      status = document.getElementById("statusBlock");
+      queueBlock = document.getElementById("queueBlock");
+      fileInput = document.getElementById("mediaInput");
+      albumSelect = document.getElementById("albumSelect");
+
+      console.log("[UploadPage] Mounted. Token present:", !!token);
+
+      await loadAlbums(server, token);
+
+      if (store.state.pendingUploads.length > 0) {
+        status.innerText = "⏳ You have pending files.";
+        form.caption.value = store.state.pendingCaption || "";
+      }
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
-        const caption = form.caption.value;
         const files = fileInput.files;
-
         if (!files.length) {
           status.innerText = "❌ No files selected.";
           return;
         }
 
-        const uploadedKeys = new Set(
-          JSON.parse(localStorage.getItem("uploadedFiles") || "[]")
-        );
-
-        const toUpload = [];
-        for (const file of files) {
-          const key = fileKey(file);
-          if (!uploadedKeys.has(key)) {
-            toUpload.push(file);
-            console.log("[UploadPage] Appending new file:", file.name);
-          } else {
-            console.log(
-              "[UploadPage] Skipping already uploaded file:",
-              file.name
-            );
-          }
-        }
-
-        if (toUpload.length === 0) {
-          status.innerText = "✅ All selected files already uploaded.";
-          return;
-        }
-
-        status.innerText = `📤 Uploading ${toUpload.length} new file(s)...`;
-        console.log(
-          "[UploadPage] Starting upload of",
-          toUpload.length,
-          "file(s)"
-        );
+        store.state.pendingUploads = [...files];
+        store.state.pendingCaption = form.caption.value;
+        const caption = form.caption.value;
+        const albumId = albumSelect.value;
+        console.log("[UploadPage] Starting upload of", files.length, "file(s)");
 
         const formData = new FormData();
         formData.append("caption", caption);
-        for (const file of toUpload) {
-          formData.append("files", file);
+        formData.append("album_id", albumId || "");
+
+        let uploaded = 0;
+
+        for (const file of files) {
+          console.log("[UploadPage] Appending file:", file.name);
+
+          try {
+            const exists = await localforage.getItem("uploaded_" + file.name);
+            if (exists) {
+              console.log(
+                "[UploadPage] Skipping (already uploaded):",
+                file.name
+              );
+              continue;
+            }
+
+            formData.set("files", file);
+
+            const res = await fetch(`${server}/upload`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
+            });
+
+            console.log("[UploadPage] Upload response status:", res.status);
+            if (!res.ok) throw new Error("Upload failed");
+
+            await localforage.setItem("uploaded_" + file.name, true);
+            uploaded++;
+          } catch (err) {
+            console.error("[UploadPage] Upload error:", err);
+            status.innerText = `❌ Error uploading ${file.name}`;
+          }
         }
 
-        try {
-          const res = await fetch(`${server}/upload`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-          });
-          console.log("[UploadPage] Upload response status:", res.status);
+        status.innerText = `✅ Uploaded ${uploaded} new file(s).`;
+        store.state.pendingUploads = [];
+        store.state.pendingCaption = "";
+        form.reset();
 
-          if (!res.ok) throw new Error("Upload failed");
-          const data = await res.json();
-          console.log("[UploadPage] Upload success:", data);
-
-          status.innerText = `✅ Uploaded ${data.uploaded} file(s)!`;
-          form.reset();
-
-          toUpload.forEach((file) => uploadedKeys.add(fileKey(file)));
-          localStorage.setItem(
-            "uploadedFiles",
-            JSON.stringify([...uploadedKeys])
-          );
-        } catch (err) {
-          status.innerText = `❌ Error: ${err.message}`;
-        }
-
-        updateQueueStatus();
-        startQueuePolling();
+        await updateQueueStatus(server, token);
+        startQueuePolling(server, token);
       });
 
-      async function updateQueueStatus() {
-        console.log("[UploadPage] Fetching queue status...");
-        try {
-          const res = await fetch(`${server}/queue/status`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const queue = await res.json();
-            console.log("[UploadPage] Queue data:", queue);
-            if (queue.length === 0) {
-              queueBlock.innerText = "✅ No items in your queue.";
-            } else {
-              queueBlock.innerHTML =
-                `<b>Your Upload Queue:</b><br>` +
-                queue
-                  .map((item) => `• ${item.filename} (${item.status})`)
-                  .join("<br>");
-            }
-          }
-        } catch (err) {
-          console.log("[UploadPage] Queue fetch error:", err);
-          queueBlock.innerText = "⚠️ Couldn't fetch queue.";
-        }
-      }
-
-      function startQueuePolling() {
-        if (pollInterval) clearInterval(pollInterval);
-        pollInterval = setInterval(updateQueueStatus, 5000);
-        console.log("[UploadPage] Started queue polling.");
-      }
-
-      startQueuePolling();
+      startQueuePolling(server, token);
     });
 
     $onUnmounted(() => {
       if (pollInterval) clearInterval(pollInterval);
     });
 
+    async function loadAlbums(server, token) {
+      try {
+        const res = await fetch(`${server}/albums`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Failed to fetch albums");
+
+        const albums = await res.json();
+        const select = document.getElementById("albumSelect");
+        albums.forEach((album) => {
+          const opt = document.createElement("option");
+          opt.value = album.id;
+          opt.innerText = `${album.name} (${album.media_count})`;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        console.warn("[UploadPage] Failed to load albums:", err);
+      }
+    }
+
+    async function updateQueueStatus(server, token) {
+      console.log("[UploadPage] Fetching queue status...");
+      try {
+        const res = await fetch(`${server}/queue/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const queue = await res.json();
+          console.log("[UploadPage] Queue data:", queue);
+          if (queue.length === 0) {
+            queueBlock.innerText = "✅ No items in your queue.";
+          } else {
+            queueBlock.innerHTML =
+              `<b>Your Upload Queue:</b><br>` +
+              queue
+                .map((item) => `• ${item.filename} (${item.status})`)
+                .join("<br>");
+          }
+        }
+      } catch {
+        queueBlock.innerText = "⚠️ Couldn't fetch queue.";
+      }
+    }
+
+    function startQueuePolling(server, token) {
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(() => updateQueueStatus(server, token), 5000);
+      console.log("[UploadPage] Started queue polling.");
+    }
+
     return $render;
   };
 </script>
+
+<style>
+  @media (prefers-color-scheme: dark) {
+    .album-select {
+      background-color: #333;
+      color: #fff;
+    }
+  }
+  .album-select {
+    border: 1px solid #ccc;
+    padding: 5px;
+  }
+</style>
