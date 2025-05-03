@@ -1,9 +1,5 @@
 <template>
-  <div
-    class="page"
-    data-name="user-viewer"
-    style="display: flex; flex-direction: column; height: 100%"
-  >
+  <div class="page" data-name="user-viewer">
     <div
       style="
         display: flex;
@@ -20,17 +16,9 @@
       </button>
     </div>
 
-    <div id="userDetails" style="padding: 1rem; text-align: center"></div>
-
-    <div
-      class="page-content tabs tabs-routable"
-      style="flex-grow: 1; min-height: 0"
-    >
-      <div
-        id="tab-user"
-        class="tab tab-active"
-        data-route-tab-id="tab-user"
-      ></div>
+    <div class="page-content">
+      <div id="userDetails" style="padding: 1rem; text-align: center"></div>
+      <div id="user-gallery"></div>
     </div>
   </div>
 </template>
@@ -51,6 +39,7 @@
       }
 
       async function loadUser() {
+        const header = document.getElementById("userHeader");
         let html = "";
         try {
           const res = await fetch(`${server}/users/${username}`, {

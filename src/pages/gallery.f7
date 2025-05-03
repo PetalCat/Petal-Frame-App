@@ -544,11 +544,6 @@
 </script>
 
 <style>
-  .page-content {
-    padding-top: 92px; /* 44px toolbar + 48px gallery-topbar */
-    padding-bottom: 80px;
-  }
-
   .page[data-name="gallery-wrapper"] .page-content {
     padding-top: 44px; /* or 48px if your toolbar is bigger */
   }
@@ -708,10 +703,10 @@
   }
 
   .page-content {
-    padding-top: 92px;
+    /* padding-top: 92px; */
     padding-bottom: 80px;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
+    /* overflow: auto;
+    -webkit-overflow-scrolling: touch; */
   }
 
   .gallery-topbar {

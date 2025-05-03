@@ -67,7 +67,7 @@ const routes = [
     tabs: [
       {
         path: "/", // this is important!!
-        id: "tab-user", // match <div id="tab-album">
+        id: "user-gallery", // match <div id="tab-album">
         component: GalleryPage, // your gallery.f7
       },
     ],
