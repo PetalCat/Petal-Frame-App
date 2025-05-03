@@ -39,10 +39,13 @@ var app = new Framework7({
       }
 
       registerSW({
+        immediate: true, // Register immediately
         onNeedRefresh() {
-          if (confirm("🆕 New version available. Reload now?")) {
-            window.location.reload();
-          }
+          console.log("[PWA] Update available – forcing reload");
+          window.location.reload(true);
+        },
+        onRegisteredSW(swUrl, registration) {
+          console.log("[PWA] SW registered:", swUrl);
         },
       });
     },
