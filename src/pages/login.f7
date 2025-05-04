@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="page" data-name="login">
     <div class="page-content">
       <form id="loginForm" class="list no-hairlines-md">
         <ul>
@@ -36,6 +36,19 @@
         <p>Don’t have an account? <a href="/register">Register!</a></p>
       </div>
       <div class="block" id="loginStatus"></div>
+      <div class="block pwa-instructions">
+        <p><b>Install this app:</b></p>
+        <p>
+          📱 <b>Android</b>: Tap the <b>⋮</b> menu in Chrome and choose<br />
+          <b>"Add to Home screen"</b>
+        </p>
+        <p>
+          🍎 <b>iOS</b>: Tap the <b>Share</b> icon (<i class="icon f7-icons"
+            >square_arrow_up</i
+          >) in Safari<br />
+          and tap <b>"Add to Home Screen"</b>
+        </p>
+      </div>
     </div>
   </div>
 </template>
@@ -79,3 +92,13 @@
     return $render;
   };
 </script>
+
+<style>
+  .pwa-instructions {
+    font-size: 13px;
+    color: #888;
+    text-align: center;
+    line-height: 1.6;
+    padding: 0 16px;
+  }
+</style>
