@@ -59,7 +59,9 @@
 
         const mediaTag = isVideo(item.filename)
           ? `<video id="${mediaId}" muted></video>`
-          : `<img id="${mediaId}" alt="${item.caption || ""}" />`;
+          : `<img loading="lazy" id="${mediaId}" alt="${
+              item.caption || ""
+            }" />`;
 
         card.innerHTML = `
 					<div class="media-header">
