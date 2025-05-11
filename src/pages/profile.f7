@@ -176,6 +176,7 @@
               const isImage = /\.(jpe?g|png|gif|webp|bmp)$/i.test(ext);
               const isVideo = /\.(mp4|webm|mov|avi|mkv)$/i.test(ext);
 
+              /** @type {HTMLVideoElement|HTMLImageElement|HTMLDivElement} */
               let preview;
               if (isVideo) {
                 preview = document.createElement("video");
